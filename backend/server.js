@@ -113,3 +113,5 @@ app.listen(PORT, () => {
   console.log(`\n🍛 MessMate API running on http://localhost:${PORT}`);
   console.log(`🖼️  Static images served from: ${uploadPath}\n`);
 });
+
+module.exports = app; // Exporting for testing purposes
