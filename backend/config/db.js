@@ -3,26 +3,31 @@ require('dotenv').config();
 
 /**
  * DATABASE CONNECTION POOL
- * Using a pool is better for performance as it reuses connections 
- * rather than opening/closing a new one for every single request.
  */
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER,
+
+  // 🔥 FIX 1: DB_USER → DB_USERNAME
+  user: process.env.DB_USERNAME,
+
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   port: process.env.DB_PORT || 3306,
+
+  // 🔥 FIX 2: REQUIRED SSL for Aiven
+  ssl: {
+    rejectUnauthorized: true
+  },
+
   waitForConnections: true,
-  connectionLimit: 10,      // Adjust based on your traffic
+  connectionLimit: 10,
   queueLimit: 0,
-  enableKeepAlive: true,    // Prevents "Connection lost" errors during inactivity
+  enableKeepAlive: true,
   keepAliveInitialDelay: 10000
 });
 
 /**
  * TEST CONNECTION
- * This self-executing check ensures your credentials are correct
- * as soon as you run `npm run dev`.
  */
 (async () => {
   try {
@@ -37,9 +42,11 @@ const pool = mysql.createPool({
     if (err.code === 'ER_BAD_DB_ERROR') {
       console.error('   Hint: The database name in your .env does not exist.');
     } else if (err.code === 'ER_ACCESS_DENIED_ERROR') {
-      console.error('   Hint: Check your DB_USER and DB_PASSWORD in .env.');
+      console.error('   Hint: Check your DB_USERNAME and DB_PASSWORD in .env.');
     } else if (err.code === 'ECONNREFUSED') {
-      console.error('   Hint: Is your MySQL server running?');
+      console.error('   Hint: Check DB_HOST or DB_PORT.');
+    } else if (err.code === 'UNAVAILABLE') {
+      console.error('   Hint: Aiven requires SSL (now added).');
     }
   }
 })();
