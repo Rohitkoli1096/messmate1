@@ -21,36 +21,98 @@ export default function AdminDashboard() {
   const [weekly, setWeekly] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // New States
+  // Management States
   const [mealMenu, setMealMenu] = useState("");
   const [mealType, setMealType] = useState("lunch");
   const [expiringUsers, setExpiringUsers] = useState([]);
   const [isNotifying, setIsNotifying] = useState(false);
 
-  useEffect(() => {
-    Promise.all([
-      attendanceAPI.getStats(),
-      attendanceAPI.getWeekly(),
-      subscriptionsAPI.getExpiring().catch(() => ({ data: [] })),
-    ])
-      .then(([s, w, e]) => {
-        setStats(s.data);
-        const map = {};
-        w.data.forEach((r) => {
-          if (!map[r.date])
-            map[r.date] = { date: r.date.slice(5), lunch: 0, dinner: 0 };
-          map[r.date][r.meal_type] = Number(r.count);
+useEffect(() => {
+  Promise.all([
+    attendanceAPI.getStats(),
+    attendanceAPI.getWeekly(),
+    subscriptionsAPI.getExpiring().catch(() => ({ data: [] })),
+  ])
+    .then(([s, w, e]) => {
+      setStats(s.data);
+      const map = {};
+      
+      w.data.forEach((r) => {
+        // --- FIX STARTS HERE ---
+        // 1. Create a proper Date object from the backend string
+        const dateObj = new Date(r.date);
+        
+        // 2. Format it to be readable (e.g., "19 Apr" or "19/04")
+        const formattedDate = dateObj.toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
         });
-        setWeekly(Object.values(map));
-        setExpiringUsers(e.data || []);
-      })
-      .catch(() => toast.error("Failed to load dashboard data"))
-      .finally(() => setLoading(false));
-  }, []);
+
+        if (!map[r.date]) {
+          map[r.date] = { 
+            date: formattedDate, // Use the clean date here
+            lunch: 0, 
+            dinner: 0 
+          };
+        }
+        // --- FIX ENDS HERE ---
+        
+        map[r.date][r.meal_type] = Number(r.count);
+      });
+      
+      setWeekly(Object.values(map));
+      setExpiringUsers(e.data || []);
+    })
+    .catch(() => toast.error("Failed to load dashboard data"))
+    .finally(() => setLoading(false));
+}, []);
+
+  /**
+   * BUG FIX: EXPORT FUNCTIONALITY
+   * Logic: One row per person, columns for Lunch and Dinner status.
+   */
+  const handleExport = () => {
+    if (!expiringUsers || expiringUsers.length === 0) {
+      return toast.error("No student data available to export");
+    }
+
+    // 1. CSV Headers
+    const headers = ["Student Name", "Date", "Lunch Status", "Dinner Status"];
+    const today = new Date().toLocaleDateString("en-IN");
+
+    // 2. Generate Rows: One row for one person
+    const rows = expiringUsers.map((user) => {
+      // NOTE: We check if the student's name exists in the daily presence lists
+      // Ensure your backend 'stats' includes 'lunch_names' and 'dinner_names' arrays
+      const isLunchPresent = stats.lunch_names?.includes(user.name)
+        ? "Present"
+        : "Absent";
+      const isDinnerPresent = stats.dinner_names?.includes(user.name)
+        ? "Present"
+        : "Absent";
+
+      return `"${user.name}",${today},${isLunchPresent},${isDinnerPresent}`;
+    });
+
+    // 3. Create and trigger download
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute(
+      "download",
+      `Daily_Attendance_${new Date().toISOString().split("T")[0]}.csv`,
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success("Individual Student Report Exported!");
+  };
 
   const handleNotify = async () => {
     if (!mealMenu.trim()) return toast.error("Please enter meal menu details");
-
     setIsNotifying(true);
     const tid = toast.loading("Sending notifications...");
     try {
@@ -137,7 +199,6 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      {/* Weekly & Progress Grid */}
       <div
         style={{
           display: "grid",
@@ -209,7 +270,6 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Quick Actions */}
       <div className="card" style={{ marginBottom: 20 }}>
         <h3 style={{ marginBottom: 14, fontSize: 15, fontWeight: 700 }}>
           Quick Actions
@@ -237,8 +297,11 @@ export default function AdminDashboard() {
             </svg>
             Run Absence Check
           </button>
+
+          {/* THE ACTIVATED EXPORT BUTTON */}
           <button
             className="btn-primary"
+            onClick={handleExport}
             style={{
               background: "linear-gradient(135deg,#06B6D4,#3B82F6)",
               display: "flex",
@@ -263,66 +326,40 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* New Sections Grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        {/* Meal Notification Card */}
         <div className="card">
           <h3 style={{ marginBottom: 14, fontSize: 15, fontWeight: 700 }}>
             📢 Send Meal Notification
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div>
-              <label
-                style={{
-                  fontSize: 12,
-                  color: "#6b7280",
-                  display: "block",
-                  marginBottom: 4,
-                }}
-              >
-                Select Meal Type
-              </label>
-              <select
-                value={mealType}
-                onChange={(e) => setMealType(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "8px",
-                  borderRadius: "8px",
-                  border: "1px solid #e5e7eb",
-                  fontSize: 13,
-                }}
-              >
-                <option value="lunch">Lunch</option>
-                <option value="dinner">Dinner</option>
-              </select>
-            </div>
-            <div>
-              <label
-                style={{
-                  fontSize: 12,
-                  color: "#6b7280",
-                  display: "block",
-                  marginBottom: 4,
-                }}
-              >
-                Meal Menu
-              </label>
-              <textarea
-                placeholder="Enter menu items..."
-                value={mealMenu}
-                onChange={(e) => setMealMenu(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: "8px",
-                  border: "1px solid #e5e7eb",
-                  minHeight: 80,
-                  fontSize: 13,
-                  outline: "none",
-                }}
-              />
-            </div>
+            <select
+              value={mealType}
+              onChange={(e) => setMealType(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "8px",
+                borderRadius: "8px",
+                border: "1px solid #e5e7eb",
+                fontSize: 13,
+              }}
+            >
+              <option value="lunch">Lunch</option>
+              <option value="dinner">Dinner</option>
+            </select>
+            <textarea
+              placeholder="Enter menu items..."
+              value={mealMenu}
+              onChange={(e) => setMealMenu(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px",
+                borderRadius: "8px",
+                border: "1px solid #e5e7eb",
+                minHeight: 80,
+                fontSize: 13,
+                outline: "none",
+              }}
+            />
             <button
               className="btn-primary"
               onClick={handleNotify}
@@ -334,7 +371,6 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Plan Expiry Card */}
         <div className="card">
           <h3 style={{ marginBottom: 14, fontSize: 15, fontWeight: 700 }}>
             ⏳ Plan Expiry (Expiring Soon)

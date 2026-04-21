@@ -1,20 +1,13 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-/**
- * DATABASE CONNECTION POOL (Aiven SSL Enabled)
- */
 const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USERNAME, // ✅ use correct env key
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  port: process.env.DB_PORT,
+  port: process.env.DB_PORT || 3306,
 
-  // 🔐 REQUIRED for Aiven
-  ssl: {
-    rejectUnauthorized: true
-  },
 
   waitForConnections: true,
   connectionLimit: 10,
@@ -27,14 +20,22 @@ const pool = mysql.createPool({
  * TEST CONNECTION
  */
 (async () => {
-  try {
-    const connection = await pool.getConnection();
-    console.log('✅ Connected to Aiven MySQL (SSL enabled)');
-    connection.release();
-  } catch (err) {
-    console.error('❌ Database Connection Error:', err.message);
-    console.error('Code:', err.code);
-  }
+    try {
+      const connection = await pool.getConnection();
+      console.log('✅ Connected to LOCAL MySQL');
+      connection.release();
+    } catch (err) {
+      console.error('❌ Database Connection Error:', err.message);
+      console.error('Code:', err.code);
+
+      if (err.code === 'ER_ACCESS_DENIED_ERROR') {
+        console.error('👉 Check DB_USERNAME / DB_PASSWORD');
+      } else if (err.code === 'ECONNREFUSED') {
+        console.error('👉 MySQL server not running or wrong port');
+      } else if (err.code === 'ER_BAD_DB_ERROR') {
+        console.error('👉 Database does not exist');
+      }
+    }
 })();
 
 module.exports = pool;
