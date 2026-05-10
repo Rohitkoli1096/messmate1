@@ -11,15 +11,23 @@ const PLANS = [
 
 export default function SubscriptionManagement() {
   const [subs, setSubs] = useState([]);
-  const [students, setStudents] = useState([]);
+  const [students, setStudents] = useState([]); // Fixed typo: useSatate -> useState
   const [form, setForm] = useState({ user_id: '', plan: 'full_1month', start_date: new Date().toISOString().split('T')[0], paid_amount: '' });
   const [extendId, setExtendId] = useState(null);
   const [extendDays, setExtendDays] = useState(7);
   const [loading, setLoading] = useState(true);
 
   const load = () => {
+    setLoading(true);
     Promise.all([subscriptionsAPI.getAll(), studentsAPI.getAll()])
-      .then(([s, st]) => { setSubs(s.data); setStudents(st.data); })
+      .then(([s, st]) => { 
+        // FIX: Remove .data as api.js now returns data directly
+        const subData = Array.isArray(s) ? s : (s?.data || []);
+        const studentData = Array.isArray(st) ? st : (st?.data || []);
+        
+        setSubs(subData); 
+        setStudents(studentData); 
+      })
       .catch(() => toast.error('Failed to load'))
       .finally(() => setLoading(false));
   };
@@ -32,7 +40,13 @@ export default function SubscriptionManagement() {
     e.preventDefault();
     const [plan_type, duration] = form.plan.split('_');
     try {
-      await subscriptionsAPI.assign({ user_id: form.user_id, plan_type, duration: duration === '1month' ? '1month' : '15days', start_date: form.start_date, paid_amount: form.paid_amount || 0 });
+      await subscriptionsAPI.assign({ 
+        user_id: form.user_id, 
+        plan_type, 
+        duration: duration === '1month' ? '1month' : '15days', 
+        start_date: form.start_date, 
+        paid_amount: form.paid_amount || 0 
+      });
       toast.success('Plan assigned!');
       setForm(f => ({ ...f, user_id: '', paid_amount: '' }));
       load();
@@ -55,6 +69,10 @@ export default function SubscriptionManagement() {
     return diff;
   };
 
+  // Safe checks for map functions
+  const safeStudents = Array.isArray(students) ? students : [];
+  const safeSubs = Array.isArray(subs) ? subs : [];
+
   return (
     <div>
       <div className="card" style={{ marginBottom: 16 }}>
@@ -65,7 +83,7 @@ export default function SubscriptionManagement() {
               <label>Student</label>
               <select value={form.user_id} onChange={e => setForm(f => ({ ...f, user_id: e.target.value }))} required>
                 <option value="">Select student</option>
-                {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {safeStudents.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div className="form-group">
@@ -95,7 +113,7 @@ export default function SubscriptionManagement() {
               <tr><th>Student</th><th>Plan</th><th>Start</th><th>End</th><th>Days Left</th><th>Status</th><th>Payment</th><th>Action</th></tr>
             </thead>
             <tbody>
-              {subs.map(s => {
+              {safeSubs.map(s => {
                 const dl = daysLeft(s.end_date);
                 return (
                   <tr key={s.id}>

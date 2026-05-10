@@ -1,278 +1,160 @@
-import React, { useState } from "react";
-import { attendanceAPI } from "../../api";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Box, Button, Card, CardContent, Stack, Typography } from "@mui/material";
+import QrCodeScannerRounded from "@mui/icons-material/QrCodeScannerRounded";
+import RestartAltRounded from "@mui/icons-material/RestartAltRounded";
 import toast from "react-hot-toast";
+import { Html5Qrcode } from "html5-qrcode";
+import api from "../../api";
 
 export default function QRScanner() {
   const [status, setStatus] = useState("idle"); // idle | scanning | success | error
   const [message, setMessage] = useState("");
+  const scannerRef = useRef(null);
+  const isProcessing = useRef(false); // BUG FIX: Prevents double-scanning
+  const regionId = "mm-qr-reader";
 
-  const handleScan = async () => {
-    setStatus("scanning");
+  const stopScanner = useCallback(async () => {
     try {
-      const res = await attendanceAPI.scan();
-      setMessage(res.data.message);
-      setStatus("success");
-      toast.success(res.data.message);
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        await scannerRef.current.stop();
+        // Do not clear the reference here to allow reuse
+      }
     } catch (err) {
-      const msg = err.response?.data?.message || "Scan failed";
-      setMessage(msg);
+      console.warn("Scanner stop error:", err);
+    }
+  }, []);
+
+  const startScanner = async () => {
+    // Reset states
+    setStatus("scanning");
+    setMessage("");
+    isProcessing.current = false;
+
+    // Initialize scanner if not already created
+    if (!scannerRef.current) {
+      scannerRef.current = new Html5Qrcode(regionId);
+    }
+
+    try {
+      await scannerRef.current.start(
+        { facingMode: "environment" },
+        { fps: 15, qrbox: { width: 240, height: 240 } },
+        async (decodedText) => {
+          // BUG FIX: Ignore if we are already talking to the server
+          if (isProcessing.current) return;
+          isProcessing.current = true;
+
+          // Stop camera immediately to save resources and provide feedback
+          await stopScanner();
+
+          try {
+            // Processing logic
+            const res = await api.post("/qr/mark-attendance", { code_value: decodedText });
+            
+            setStatus("success");
+            const successMsg = res.data?.message || "Attendance marked successfully!";
+            setMessage(successMsg);
+            toast.success(successMsg);
+            
+          } catch (err) {
+            const errorMsg = err?.response?.data?.message || "Invalid Attendance QR";
+            setStatus("error");
+            setMessage(errorMsg);
+            toast.error(errorMsg);
+          } finally {
+            isProcessing.current = false;
+          }
+        },
+        () => {} // Framework internal errors
+      );
+    } catch (err) {
       setStatus("error");
-      toast.error(msg);
+      setMessage("Camera permission denied or unavailable");
+      toast.error("Camera permission denied");
     }
   };
 
-  const reset = () => {
-    setStatus("idle");
-    setMessage("");
-  };
-
-  const hour = new Date().getHours();
-  const mealWindow =
-    hour >= 11 && hour < 14
-      ? "lunch"
-      : hour >= 19 && hour < 22
-        ? "dinner"
-        : null;
+  useEffect(() => {
+    return () => {
+      // Clean up on component unmount
+      if (scannerRef.current) {
+        stopScanner().then(() => {
+          scannerRef.current?.clear();
+        });
+      }
+    };
+  }, [stopScanner]);
 
   return (
-    <div
-      style={{
-        padding: 16,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 16,
-      }}
-    >
-      <div
-        style={{
-          background: "linear-gradient(135deg,#1e1b4b,#312e81)",
-          borderRadius: 20,
-          padding: 24,
-          width: "100%",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 16,
-        }}
-      >
-        <div style={{ color: "#fff", fontSize: 20, fontWeight: 800 }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <path d="M4 7V4H7" stroke="white" strokeWidth="2" />
-            <path d="M20 7V4H17" stroke="white" strokeWidth="2" />
-            <path d="M4 17V20H7" stroke="white" strokeWidth="2" />
-            <path d="M20 17V20H17" stroke="white" strokeWidth="2" />
-            <rect
-              x="7"
-              y="7"
-              width="10"
-              height="10"
-              stroke="white"
-              strokeWidth="2"
-            />
-          </svg>{" "}
-          Scan QR Code
-        </div>
-        <div
-          style={{
-            color: "rgba(255,255,255,.7)",
-            fontSize: 13,
-            textAlign: "center",
-          }}
-        >
-          {mealWindow
-            ? `Active: ${mealWindow === "lunch" ? "🍛 Lunch" : "🌙 Dinner"} window`
-            : "No meal window active right now"}
-        </div>
+    <Stack spacing={2} sx={{ pt: 1 }}>
+      <Box>
+        <Typography variant="h5" sx={{ fontWeight: 900 }}>
+          Scan Attendance QR
+        </Typography>
+        <Typography color="text.secondary">
+          Scan the weekly QR code at the mess counter. You must have an active plan to mark attendance.
+        </Typography>
+      </Box>
 
-        {/* Camera frame simulation */}
-        <div
-          style={{
-            width: 220,
-            height: 220,
-            borderRadius: 20,
-            background: "rgba(255,255,255,.05)",
-            border: "2px solid rgba(255,255,255,.3)",
-            position: "relative",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            overflow: "hidden",
-          }}
-        >
-          {/* Corner markers */}
-          {[
-            ["top:8px", "left:8px", "borderTop", "borderLeft"],
-            ["top:8px", "right:8px", "borderTop", "borderRight"],
-            ["bottom:8px", "left:8px", "borderBottom", "borderLeft"],
-            ["bottom:8px", "right:8px", "borderBottom", "borderRight"],
-          ].map(([t, s, b1, b2], i) => (
-            <div
-              key={i}
-              style={{
-                position: "absolute",
-                width: 22,
-                height: 22,
-                [t.split(":")[0]]: t.split(":")[1],
-                [s.split(":")[0]]: s.split(":")[1],
-                [b1]: "3px solid #8B5CF6",
-                [b2]: "3px solid #8B5CF6",
-                borderRadius:
-                  i === 0
-                    ? "4px 0 0 0"
-                    : i === 1
-                      ? "0 4px 0 0"
-                      : i === 2
-                        ? "0 0 0 4px"
-                        : "0 0 4px 0",
+      <Card>
+        <CardContent>
+          <Box
+            id={regionId}
+            sx={{
+              width: "100%",
+              borderRadius: 3,
+              overflow: "hidden",
+              bgcolor: "background.default",
+              border: "1px solid",
+              borderColor: "divider",
+              minHeight: 320,
+            }}
+          />
+
+          {message ? (
+            <Typography
+              sx={{
+                mt: 2,
+                fontWeight: 800,
+                color: status === "success" ? "success.main" : status === "error" ? "error.main" : "text.primary",
               }}
-            />
-          ))}
+            >
+              {message}
+            </Typography>
+          ) : null}
 
-          {status === "success" ? (
-            <div style={{ textAlign: "center", color: "#22C55E" }}>
-              <div style={{ fontSize: 52 }}>✅</div>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#fff",
-                  marginTop: 8,
-                }}
-              >
-                Marked!
-              </div>
-            </div>
-          ) : status === "error" ? (
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 52 }}>❌</div>
-            </div>
-          ) : status === "scanning" ? (
-            <div style={{ textAlign: "center", color: "rgba(255,255,255,.5)" }}>
-              <div style={{ fontSize: 36 }}>⏳</div>
-              <div style={{ fontSize: 12, marginTop: 8 }}>Scanning...</div>
-            </div>
-          ) : (
-            <div style={{ textAlign: "center", color: "rgba(255,255,255,.3)" }}>
-              <div style={{ fontSize: 52 }}>
-                {" "}
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <path d="M4 7V4H7" stroke="white" strokeWidth="2" />
-                  <path d="M20 7V4H17" stroke="white" strokeWidth="2" />
-                  <path d="M4 17V20H7" stroke="white" strokeWidth="2" />
-                  <path d="M20 17V20H17" stroke="white" strokeWidth="2" />
-                  <rect
-                    x="7"
-                    y="7"
-                    width="10"
-                    height="10"
-                    stroke="white"
-                    strokeWidth="2"
-                  />
-                </svg>
-              </div>
-              <div style={{ fontSize: 11, marginTop: 8 }}>Camera preview</div>
-            </div>
-          )}
-        </div>
+          <Stack direction="row" spacing={1.25} sx={{ mt: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<QrCodeScannerRounded />}
+              onClick={startScanner}
+              disabled={status === "scanning"}
+            >
+              {status === "scanning" ? "Scanning..." : "Start camera"}
+            </Button>
+            <Button 
+              variant="outlined" 
+              startIcon={<RestartAltRounded />} 
+              onClick={() => {
+                setStatus("idle");
+                setMessage("");
+                startScanner();
+              }}
+            >
+              Reset
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
 
-        <div
-          style={{
-            color: "rgba(255,255,255,.6)",
-            fontSize: 12,
-            textAlign: "center",
-            lineHeight: 1.6,
-          }}
-        >
-          Lunch: 11:00 AM – 2:00 PM
-          <br />
-          Dinner: 7:00 PM – 10:00 PM
-        </div>
-      </div>
-
-      {status === "idle" || status === "scanning" ? (
-        <button
-          onClick={handleScan}
-          disabled={status === "scanning"}
-          style={{
-            width: "100%",
-            padding: 16,
-            borderRadius: 16,
-            border: "none",
-            background: "linear-gradient(135deg,#06B6D4,#3B82F6)",
-            color: "#fff",
-            fontFamily: "Plus Jakarta Sans, sans-serif",
-            fontSize: 16,
-            fontWeight: 800,
-            cursor: status === "scanning" ? "not-allowed" : "pointer",
-            opacity: status === "scanning" ? 0.7 : 1,
-          }}
-        >
-          {status === "scanning" ? "Scanning..." : "📷 Tap to Scan QR"}
-        </button>
-      ) : (
-        <div style={{ width: "100%", textAlign: "center" }}>
-          <div
-            style={{
-              background: status === "success" ? "#dcfce7" : "#fee2e2",
-              borderRadius: 14,
-              padding: 16,
-              marginBottom: 12,
-              color: status === "success" ? "#16a34a" : "#dc2626",
-              fontWeight: 600,
-              fontSize: 14,
-            }}
-          >
-            {message}
-          </div>
-          <button
-            onClick={reset}
-            style={{
-              padding: "12px 28px",
-              borderRadius: 12,
-              border: "2px solid #4F46E5",
-              background: "transparent",
-              color: "#4F46E5",
-              fontFamily: "Plus Jakarta Sans, sans-serif",
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            Scan Again
-          </button>
-        </div>
-      )}
-
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 14,
-          padding: 14,
-          width: "100%",
-          boxShadow: "0 2px 8px rgba(0,0,0,.06)",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 13,
-            fontWeight: 700,
-            color: "#1e1b4b",
-            marginBottom: 8,
-          }}
-        >
-          How it works
-        </div>
-        <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.7 }}>
-          1. Tap the scan button during meal time
-          <br />
-          2. Your attendance is automatically marked
-          <br />
-          3. System detects lunch or dinner based on time
-          <br />
-          4. Subscription must be active to scan
-        </div>
-      </div>
-    </div>
+      <Card>
+        <CardContent>
+          <Typography sx={{ fontWeight: 900, mb: 0.5 }}>Weekly System</Typography>
+          <Typography color="text.secondary">
+            QR codes are updated weekly. Ensure you scan the current one. Duplicate scans for the same meal are blocked.
+          </Typography>
+        </CardContent>
+      </Card>
+    </Stack>
   );
 }

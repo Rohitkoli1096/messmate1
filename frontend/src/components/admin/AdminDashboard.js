@@ -12,11 +12,14 @@ import {
 import toast from "react-hot-toast";
 
 export default function AdminDashboard() {
+  // ✅ Robust initial state with arrays to prevent .includes() errors
   const [stats, setStats] = useState({
     lunch: 0,
     dinner: 0,
     total: 0,
     absent: 0,
+    lunch_names: [],
+    dinner_names: [],
   });
   const [weekly, setWeekly] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,74 +30,76 @@ export default function AdminDashboard() {
   const [expiringUsers, setExpiringUsers] = useState([]);
   const [isNotifying, setIsNotifying] = useState(false);
 
-useEffect(() => {
-  Promise.all([
-    attendanceAPI.getStats(),
-    attendanceAPI.getWeekly(),
-    subscriptionsAPI.getExpiring().catch(() => ({ data: [] })),
-  ])
-    .then(([s, w, e]) => {
-      setStats(s.data);
-      const map = {};
-      
-      w.data.forEach((r) => {
-        // --- FIX STARTS HERE ---
-        // 1. Create a proper Date object from the backend string
-        const dateObj = new Date(r.date);
-        
-        // 2. Format it to be readable (e.g., "19 Apr" or "19/04")
-        const formattedDate = dateObj.toLocaleDateString("en-IN", {
-          day: "2-digit",
-          month: "short",
+  useEffect(() => {
+    loadDashboard();
+  }, []);
+
+  const loadDashboard = () => {
+    setLoading(true);
+    Promise.all([
+      attendanceAPI.getStats().catch(() => null),
+      attendanceAPI.getWeekly().catch(() => []),
+      subscriptionsAPI.getExpiring().catch(() => []),
+    ])
+      .then(([s, w, e]) => {
+        // ✅ Handle data properly even if one API fails
+        if (s) {
+          setStats({
+            lunch: s.lunch || 0,
+            dinner: s.dinner || 0,
+            total: s.total || 0,
+            absent: s.absent || 0,
+            lunch_names: Array.isArray(s.lunch_names) ? s.lunch_names : [],
+            dinner_names: Array.isArray(s.dinner_names) ? s.dinner_names : [],
+          });
+        }
+
+        const map = {};
+        const weeklyData = Array.isArray(w) ? w : [];
+
+        weeklyData.forEach((r) => {
+          const dateObj = new Date(r.date);
+          const formattedDate = dateObj.toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+          });
+
+          if (!map[r.date]) {
+            map[r.date] = { date: formattedDate, lunch: 0, dinner: 0 };
+          }
+          map[r.date][r.meal_type] = Number(r.count);
         });
 
-        if (!map[r.date]) {
-          map[r.date] = { 
-            date: formattedDate, // Use the clean date here
-            lunch: 0, 
-            dinner: 0 
-          };
-        }
-        // --- FIX ENDS HERE ---
-        
-        map[r.date][r.meal_type] = Number(r.count);
-      });
-      
-      setWeekly(Object.values(map));
-      setExpiringUsers(e.data || []);
-    })
-    .catch(() => toast.error("Failed to load dashboard data"))
-    .finally(() => setLoading(false));
-}, []);
+        setWeekly(Object.values(map));
+        setExpiringUsers(Array.isArray(e) ? e : []);
+      })
+      .catch((err) => {
+        console.error("Dashboard Load Error:", err);
+        toast.error("Failed to load dashboard data");
+      })
+      .finally(() => setLoading(false));
+  };
 
-  /**
-   * BUG FIX: EXPORT FUNCTIONALITY
-   * Logic: One row per person, columns for Lunch and Dinner status.
-   */
   const handleExport = () => {
     if (!expiringUsers || expiringUsers.length === 0) {
       return toast.error("No student data available to export");
     }
 
-    // 1. CSV Headers
     const headers = ["Student Name", "Date", "Lunch Status", "Dinner Status"];
     const today = new Date().toLocaleDateString("en-IN");
 
-    // 2. Generate Rows: One row for one person
     const rows = expiringUsers.map((user) => {
-      // NOTE: We check if the student's name exists in the daily presence lists
-      // Ensure your backend 'stats' includes 'lunch_names' and 'dinner_names' arrays
-      const isLunchPresent = stats.lunch_names?.includes(user.name)
+      // ✅ Check against the lists safely
+      const isLunchPresent = (stats.lunch_names || []).includes(user.name)
         ? "Present"
         : "Absent";
-      const isDinnerPresent = stats.dinner_names?.includes(user.name)
+      const isDinnerPresent = (stats.dinner_names || []).includes(user.name)
         ? "Present"
         : "Absent";
 
       return `"${user.name}",${today},${isLunchPresent},${isDinnerPresent}`;
     });
 
-    // 3. Create and trigger download
     const csvContent = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -102,7 +107,7 @@ useEffect(() => {
     link.href = url;
     link.setAttribute(
       "download",
-      `Daily_Attendance_${new Date().toISOString().split("T")[0]}.csv`,
+      `Attendance_Report_${new Date().toISOString().split("T")[0]}.csv`,
     );
     document.body.appendChild(link);
     link.click();
@@ -114,20 +119,24 @@ useEffect(() => {
   const handleNotify = async () => {
     if (!mealMenu.trim()) return toast.error("Please enter meal menu details");
     setIsNotifying(true);
-    const tid = toast.loading("Sending notifications...");
+    const tid = toast.loading("Broadcasting notification...");
+
     try {
+      // ✅ Sending explicit fields to prevent Database Errors
       await notificationsAPI.sendMealUpdate({
-        meal_type: mealType,
-        menu: mealMenu,
-        date: new Date().toISOString().split("T")[0],
+        meal_type: mealType, // 'lunch' or 'dinner'
+        menu: mealMenu, // The text content
+        date: new Date().toISOString().split("T")[0], // YYYY-MM-DD
       });
+
       toast.success("Notification sent to all students!", { id: tid });
       setMealMenu("");
     } catch (err) {
-      toast.error(
-        err.response?.data?.message || "Failed to send notification",
-        { id: tid },
-      );
+      console.error("Notify Error Details:", err);
+      // ✅ Show detailed backend error if available
+      const errMsg =
+        err.response?.data?.message || "Failed to send notification (Check DB)";
+      toast.error(errMsg, { id: tid });
     } finally {
       setIsNotifying(false);
     }
@@ -135,8 +144,15 @@ useEffect(() => {
 
   if (loading)
     return (
-      <div style={{ textAlign: "center", padding: 60, color: "#6b7280" }}>
-        Loading dashboard...
+      <div
+        style={{
+          textAlign: "center",
+          padding: 60,
+          color: "#6b7280",
+          fontWeight: "600",
+        }}
+      >
+        Syncing Dashboard Data...
       </div>
     );
 
@@ -163,31 +179,7 @@ useEffect(() => {
             lbl: "Dinner Today",
             color: "#3B82F6",
           },
-          {
-            icon: (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <line
-                  x1="18"
-                  y1="6"
-                  x2="6"
-                  y2="18"
-                  stroke="#EF4444"
-                  strokeWidth="2.5"
-                />
-                <line
-                  x1="6"
-                  y1="6"
-                  x2="18"
-                  y2="18"
-                  stroke="#EF4444"
-                  strokeWidth="2.5"
-                />
-              </svg>
-            ),
-            val: stats.absent,
-            lbl: "Absent",
-            color: "#EF4444",
-          },
+          { icon: "❌", val: stats.absent, lbl: "Absent", color: "#EF4444" },
         ].map((s, i) => (
           <div key={i} className="stat-card">
             <div className="stat-icon">{s.icon}</div>
@@ -278,9 +270,10 @@ useEffect(() => {
           <button
             className="btn-primary"
             onClick={() =>
-              attendanceAPI
-                .absenceCheck()
-                .then(() => toast.success("Absence check complete!"))
+              attendanceAPI.absenceCheck().then(() => {
+                toast.success("Absence check complete!");
+                loadDashboard(); // Refresh stats
+              })
             }
             style={{ display: "flex", alignItems: "center", gap: 8 }}
           >
@@ -298,7 +291,6 @@ useEffect(() => {
             Run Absence Check
           </button>
 
-          {/* THE ACTIVATED EXPORT BUTTON */}
           <button
             className="btn-primary"
             onClick={handleExport}
@@ -347,7 +339,7 @@ useEffect(() => {
               <option value="dinner">Dinner</option>
             </select>
             <textarea
-              placeholder="Enter menu items..."
+              placeholder="Enter menu items (e.g. Paneer, Roti, Dal...)"
               value={mealMenu}
               onChange={(e) => setMealMenu(e.target.value)}
               style={{
@@ -398,9 +390,12 @@ useEffect(() => {
                   <div
                     style={{ color: "#EF4444", fontSize: 12, fontWeight: 700 }}
                   >
-                    {Math.ceil(
-                      (new Date(user.end_date) - new Date()) /
-                        (1000 * 60 * 60 * 24),
+                    {Math.max(
+                      0,
+                      Math.ceil(
+                        (new Date(user.end_date) - new Date()) /
+                          (1000 * 60 * 60 * 24),
+                      ),
                     )}{" "}
                     Days Left
                   </div>

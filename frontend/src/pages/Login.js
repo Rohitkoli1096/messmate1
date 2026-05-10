@@ -55,7 +55,6 @@ export default function Login() {
           </p>
         </form>
         <p style={{ textAlign: 'center', color: 'rgba(255,255,255,.5)', fontSize: 11, marginTop: 20 }}>
-          Demo: admin / admin123 &nbsp;|&nbsp; rohit.s / pass123
         </p>
       </div>
     </div>

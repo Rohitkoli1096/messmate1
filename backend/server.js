@@ -45,6 +45,9 @@ app.use("/api/subscriptions", require("./routes/subscriptions"));
 app.use("/api/payments", require("./routes/payments"));
 app.use("/api/notifications", require("./routes/notifications"));
 
+// --- UPDATED: REGISTER QR CODE ROUTE ---
+app.use("/api/qr", require("./routes/qr")); 
+
 // Health Check
 app.get("/api/health", (req, res) =>
   res.json({ status: "MessMate API is running 🍛", static_path: uploadPath })
@@ -113,5 +116,3 @@ app.listen(PORT, () => {
   console.log(`\n🍛 MessMate API running on http://localhost:${PORT}`);
   console.log(`🖼️  Static images served from: ${uploadPath}\n`);
 });
-
-module.exports = app; // Exporting for testing purposes

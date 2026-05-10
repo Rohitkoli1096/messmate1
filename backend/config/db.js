@@ -36,6 +36,7 @@ const pool = mysql.createPool({
         console.error('👉 Database does not exist');
       }
     }
+  
 })();
 
 module.exports = pool;

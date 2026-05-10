@@ -1,27 +1,60 @@
 import axios from "axios";
+import toast from "react-hot-toast";
 
+/**
+ * TITAN OS - API CORE
+ * Industrial-grade networking layer with auto-interception and token management.
+ */
 const API = axios.create({
-  baseURL: `${process.env.REACT_APP_BACKEND_URL}/api`,
+  baseURL: process.env.REACT_APP_BACKEND_URL
+    ? `${process.env.REACT_APP_BACKEND_URL.replace(/\/$/, "")}/api`
+    : "http://localhost:5001/api", // Fallback to your local port
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
 
+// --- SECURE REQUEST INTERCEPTOR ---
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
-});
+}, (error) => Promise.reject(error));
 
+// --- GLOBAL RESPONSE & ERROR INTERCEPTOR ---
 API.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem("token");
-      window.location.href = "/login";
-    }
-    return Promise.reject(err);
+  (response) => {
+    // If backend sends { success: true, data: [...] }, this extracts it.
+    // Otherwise, it returns the standard response body.
+    return response.data;
   },
+  async (err) => {
+    const status = err.response?.status;
+    const errorMsg = err.response?.data?.message || "COMMUNICATION_FAULT_DETECTED";
+
+    if (status === 401) {
+      localStorage.clear();
+      if (!window.location.pathname.includes("/login")) {
+        window.location.href = "/login";
+      }
+    }
+
+    if (status === 409 || status === 429) {
+      toast.error(errorMsg, { icon: '⚠️' });
+    }
+
+    if (status === 500) {
+      toast.error("INTERNAL_SERVER_FAULT");
+    }
+
+    return Promise.reject(err);
+  }
 );
+
+// ==========================================
+// ENDPOINT MODULES
+// ==========================================
 
 export const authAPI = {
   login: (data) => API.post("/auth/login", data),
@@ -37,12 +70,12 @@ export const studentsAPI = {
 };
 
 export const attendanceAPI = {
-  scan: () => API.post("/attendance/scan"),
-  getMy: (month, year) => API.get(`/attendance/my?month=${month}&year=${year}`),
+  markAttendance: (code_value) => API.post("/qr/mark-attendance", { code_value }),
+  getMy: (month, year) => API.get(`/qr/my?month=${month}&year=${year}`),
+  getAllLogs: () => API.get("/qr/attendance-logs"),
   getDaily: (date) => API.get(`/attendance/daily?date=${date}`),
   getStats: () => API.get("/attendance/stats"),
   getWeekly: () => API.get("/attendance/weekly"),
-  absenceCheck: () => API.post("/attendance/absence-check"),
 };
 
 export const subscriptionsAPI = {
@@ -50,14 +83,26 @@ export const subscriptionsAPI = {
   getAll: () => API.get("/subscriptions"),
   assign: (data) => API.post("/subscriptions", data),
   extend: (id, days) => API.put(`/subscriptions/${id}/extend`, { days }),
-  // Added for Dashboard
   getExpiring: () => API.get("/subscriptions/expiring"),
 };
 
 export const paymentsAPI = {
   getAll: () => API.get("/payments"),
-  getMy: () => API.get("/payments/my"),
+  
+  // NEW/UPDATED: Fetches the individual ledger for PaymentScreen
+  getMy: () => API.get("/payments/my"), 
+  
+  // NEW: Fetches the specific balance and UPI ID for SettleBalance page
+  getDetails: (studentId) => API.get(`/payments/payment-details/${studentId}`),
+  
+  // NEW: Submits the UTR number and amount to the database
+  submitSettlement: (data) => API.post("/payments/submit-settlement", data),
+
   update: (id, data) => API.put(`/payments/${id}`, data),
+  
+  createOrder: (sub_id) => API.post("/payments/orders", { subscription_id: sub_id }),
+  verifyCheckout: (payload) => API.post("/payments/verify-checkout", payload),
+  
   uploadScreenshot: (formData) =>
     API.post("/payments/upload-screenshot", formData, {
       headers: { "Content-Type": "multipart/form-data" },
@@ -68,8 +113,14 @@ export const notificationsAPI = {
   getMy: () => API.get("/notifications/my"),
   markRead: () => API.put("/notifications/mark-read"),
   getUnreadCount: () => API.get("/notifications/unread-count"),
-  // Added for Meal Notifications
   sendMealUpdate: (data) => API.post("/notifications/send-meal-update", data),
+};
+
+export const qrAPI = {
+  getActivePayment: () => API.get("/qr/active"),
+  rotatePayment: () => API.post("/qr/rotate", {}),
+  getActiveAttendance: () => API.get("/qr/active-attendance"),
+  rotateAttendance: () => API.post("/qr/rotate-attendance", {}),
 };
 
 export default API;

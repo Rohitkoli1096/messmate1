@@ -1,255 +1,200 @@
-import React, { useState } from "react";
-import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
-import StudentDashboard from "../components/student/StudentDashboard";
-import AttendanceDiary from "../components/student/AttendanceDiary";
-import QRScanner from "../components/student/QRScanner";
-import PaymentScreen from "../components/student/PaymentScreen";
-import NotificationsScreen from "../components/student/NotificationsScreen";
-import ProfileScreen from "../components/student/ProfileScreen";
+import React from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+  AppBar,
+  Badge,
+  Box,
+  IconButton,
+  Toolbar,
+  Typography,
+  Avatar,
+} from "@mui/material";
+import { motion, AnimatePresence } from "framer-motion";
 
-const navItems = [
-  {
-    id: "home",
-    label: "Home",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path
-          d="M3 10L12 3L21 10V21H3V10Z"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-      </svg>
-    ),
-  },
-  {
-    id: "diary",
-    label: "Diary",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <rect
-          x="3"
-          y="4"
-          width="18"
-          height="18"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-        <line
-          x1="3"
-          y1="10"
-          x2="21"
-          y2="10"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-      </svg>
-    ),
-  },
-  {
-    id: "scan",
-    label: "Scan",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <rect
-          x="4"
-          y="4"
-          width="6"
-          height="6"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-        <rect
-          x="14"
-          y="4"
-          width="6"
-          height="6"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-        <rect
-          x="4"
-          y="14"
-          width="6"
-          height="6"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-        <rect
-          x="14"
-          y="14"
-          width="6"
-          height="6"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-      </svg>
-    ),
-  },
-  {
-    id: "payment",
-    label: "Payment",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <rect
-          x="2"
-          y="5"
-          width="20"
-          height="14"
-          rx="2"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-        <line
-          x1="2"
-          y1="10"
-          x2="22"
-          y2="10"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-      </svg>
-    ),
-  },
-  {
-    id: "profile",
-    label: "Profile",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="2" />
-        <path
-          d="M4 20C4 16 8 14 12 14C16 14 20 16 20 20"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-      </svg>
-    ),
-  },
-];
+// Clean, Professional Icons
+import HomeRounded from "@mui/icons-material/HomeOutlined";
+import CalendarMonthRounded from "@mui/icons-material/CalendarTodayOutlined";
+import QrCodeScannerRounded from "@mui/icons-material/QrCodeScannerRounded";
+import PaymentsRounded from "@mui/icons-material/AccountBalanceWalletOutlined";
+import PersonRounded from "@mui/icons-material/PersonOutlineRounded";
+import NotificationsNoneRounded from "@mui/icons-material/NotificationsNoneRounded";
+
+import { useRealtime } from "../realtime/RealtimeProvider";
 
 export default function StudentLayout() {
-  const [active, setActive] = useState("home");
-  const { user, logout } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
+  const { unreadCount } = useRealtime() || { unreadCount: 0 };
 
-  const panels = {
-    home: <StudentDashboard onScan={() => setActive("scan")} />,
-    diary: <AttendanceDiary />,
-    scan: <QRScanner />,
-    payment: <PaymentScreen />,
-    notifications: <NotificationsScreen />,
-    profile: (
-      <ProfileScreen
-        onLogout={() => {
-          logout();
-          navigate("/login");
-        }}
-      />
-    ),
-  };
+  const currentTab = location.pathname.split("/")[2] || "home";
 
-  // Mobile-first layout
   return (
-    <div
-      style={{
-        maxWidth: 480,
-        margin: "0 auto",
-        height: "100vh",
+    <Box
+      sx={{
+        maxWidth: 500,
+        mx: "auto",
+        minHeight: "100vh",
+        bgcolor: "#FFFFFF", 
         display: "flex",
         flexDirection: "column",
-        background: "#F0F0FF",
         position: "relative",
       }}
     >
-      {/* Top bar */}
-      <div
-        style={{
-          background: "#fff",
-          padding: "12px 20px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          borderBottom: "1px solid #f3f4f6",
-          flexShrink: 0,
-        }}
+      {/* 1. HEADER */}
+      <AppBar 
+        position="sticky" 
+        sx={{ 
+          background: "rgba(255, 255, 255, 0.8)", 
+          backdropFilter: "blur(15px)",
+          borderBottom: "1px solid #F1F5F9" 
+        }} 
+        elevation={0}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 22 }}>🍛</span>
-          <span style={{ fontWeight: 800, color: "#1e1b4b", fontSize: 16 }}>
-            Mess<span style={{ color: "#8B5CF6" }}>Mate</span>
-          </span>
-        </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <button
-            onClick={() => setActive("notifications")}
-            style={{ background: "none", border: "none", cursor: "pointer" }}
+        <Toolbar sx={{ justifyContent: "space-between", px: 2.5 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Avatar 
+              sx={{ width: 32, height: 32, bgcolor: "#EEF2FF", color: "#4F46E5", fontWeight: 800, fontSize: '0.75rem' }}
+            >
+              M
+            </Avatar>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#0F172A", letterSpacing: "-0.5px" }}>
+              MessMate
+            </Typography>
+          </Box>
+
+          <IconButton onClick={() => navigate("/student/notifications")} sx={{ bgcolor: "#F8FAFC" }}>
+            <Badge color="primary" variant="dot" invisible={unreadCount === 0}>
+              <NotificationsNoneRounded sx={{ color: "#64748B", fontSize: 22 }} />
+            </Badge>
+          </IconButton>
+        </Toolbar>
+      </AppBar>
+
+      {/* 2. CONTENT */}
+      <Box sx={{ flex: 1, p: 2, pb: 12 }}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.2 }}
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M18 8C18 5.79 16.21 4 14 4H10C7.79 4 6 5.79 6 8V12C6 13.1 5.1 14 4 14H20C18.9 14 18 13.1 18 12V8Z"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-              <path
-                d="M9 18C9 19.66 10.34 21 12 21C13.66 21 15 19.66 15 18"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-            </svg>
-          </button>
-        </div>
-      </div>
+            <Outlet />
+          </motion.div>
+        </AnimatePresence>
+      </Box>
 
-      {/* Content */}
-      <div style={{ flex: 1, overflow: "auto", paddingBottom: 72 }}>
-        {panels[active] || panels["home"]}
-      </div>
-
-      {/* Bottom Nav */}
-      <div
-        style={{
+      {/* 3. UPDATED PROFESSIONAL BOTTOM NAV */}
+      <Box
+        sx={{
           position: "fixed",
           bottom: 0,
           left: "50%",
           transform: "translateX(-50%)",
           width: "100%",
-          maxWidth: 480,
-          background: "#fff",
-          borderTop: "1px solid #f3f4f6",
-          display: "flex",
-          zIndex: 100,
+          maxWidth: 500,
+          zIndex: 1000,
+          bgcolor: "rgba(255, 255, 255, 0.95)",
+          backdropFilter: "blur(20px)",
+          borderTop: "1px solid #F1F5F9",
+          // Support for modern mobile gestures
+          pb: "calc(8px + env(safe-area-inset-bottom))", 
         }}
       >
-        {navItems.map((n) => (
-          <button
-            key={n.id}
-            onClick={() => setActive(n.id)}
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              padding: "10px 4px",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            <span style={{ fontSize: 20 }}>{n.icon}</span>
-            <span
+        <Box sx={{ display: "flex", justifyContent: "space-around", alignItems: "center", height: 64 }}>
+          <NavItem 
+            active={currentTab === "home"} 
+            icon={<HomeRounded />} 
+            label="Home" 
+            onClick={() => navigate("/student/home")} 
+          />
+          <NavItem 
+            active={currentTab === "diary"} 
+            icon={<CalendarMonthRounded />} 
+            label="Diary" 
+            onClick={() => navigate("/student/diary")} 
+          />
+          
+          {/* CENTRAL ACTION */}
+          <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              onClick={() => navigate("/student/scan")}
               style={{
-                fontSize: 10,
-                fontWeight: 600,
-                color: active === n.id ? "#4F46E5" : "#9ca3af",
-                marginTop: 2,
-                fontFamily: "Plus Jakarta Sans, sans-serif",
+                background: "#4F46E5",
+                color: "white",
+                border: "none",
+                borderRadius: "16px",
+                width: "48px",
+                height: "48px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                boxShadow: "0 8px 16px -4px rgba(79, 70, 229, 0.4)",
               }}
             >
-              {n.label}
-            </span>
-          </button>
-        ))}
-      </div>
-    </div>
+              <QrCodeScannerRounded sx={{ fontSize: 24 }} />
+            </motion.button>
+          </Box>
+
+          <NavItem 
+            active={currentTab === "payment"} 
+            icon={<PaymentsRounded />} 
+            label="Pay" 
+            onClick={() => navigate("/student/payment")} 
+          />
+          <NavItem 
+            active={currentTab === "profile"} 
+            icon={<PersonRounded />} 
+            label="Me" 
+            onClick={() => navigate("/student/profile")} 
+          />
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+function NavItem({ active, icon, label, onClick }) {
+  return (
+    <Box
+      onClick={onClick}
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        flex: 1,
+        position: "relative",
+        height: "100%",
+        gap: 0.5
+      }}
+    >
+      {/* Precision Active Indicator */}
+      {active && (
+        <motion.div
+          layoutId="nav-line"
+          style={{
+            position: "absolute",
+            top: 0,
+            width: "32px",
+            height: "3px",
+            backgroundColor: "#4F46E5",
+            borderRadius: "0 0 4px 4px"
+          }}
+        />
+      )}
+
+      <Box sx={{ color: active ? "#4F46E5" : "#94A3B8", transition: "color 0.2s", display: 'flex' }}>
+        {React.cloneElement(icon, { sx: { fontSize: 22 } })}
+      </Box>
+      
+      <Typography variant="caption" sx={{ fontSize: "10px", fontWeight: active ? 800 : 600, color: active ? "#4F46E5" : "#94A3B8" }}>
+        {label}
+      </Typography>
+    </Box>
   );
 }

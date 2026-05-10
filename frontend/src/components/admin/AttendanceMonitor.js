@@ -3,6 +3,7 @@ import { attendanceAPI } from "../../api";
 import toast from "react-hot-toast";
 
 export default function AttendanceMonitor() {
+  // Initialize with an empty array to prevent .filter/ .length errors
   const [records, setRecords] = useState([]);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [filter, setFilter] = useState("");
@@ -12,8 +13,16 @@ export default function AttendanceMonitor() {
     setLoading(true);
     attendanceAPI
       .getDaily(d)
-      .then((r) => setRecords(r.data))
-      .catch(() => toast.error("Failed to load attendance"))
+      .then((r) => {
+        // SMART FIX: Handle both unwrapped data and the old .data format
+        const data = Array.isArray(r) ? r : (r?.data || []);
+        setRecords(data);
+      })
+      .catch((err) => {
+        console.error("Attendance load error:", err);
+        toast.error("Failed to load attendance");
+        setRecords([]); // Reset to empty array on error to prevent crash
+      })
       .finally(() => setLoading(false));
   };
 
@@ -21,12 +30,13 @@ export default function AttendanceMonitor() {
     load(date);
   }, [date]);
 
-  const filtered = records.filter((r) =>
-    r.name.toLowerCase().includes(filter.toLowerCase()),
+  // Use optional chaining and fallback to ensure 'records' is never null
+  const filtered = (records || []).filter((r) =>
+    r?.name?.toLowerCase().includes(filter.toLowerCase()),
   );
 
-  const present = records.filter((r) => r.lunch === "present").length;
-  const absent = records.filter((r) => !r.lunch || r.lunch === "absent").length;
+  const present = (records || []).filter((r) => r.lunch === "present").length;
+  const absent = (records || []).filter((r) => !r.lunch || r.lunch === "absent").length;
 
   return (
     <div>
@@ -37,7 +47,7 @@ export default function AttendanceMonitor() {
         <div className="stat-card">
           <div className="stat-icon">👥</div>
           <div className="stat-val" style={{ color: "#4F46E5" }}>
-            {records.length}
+            {records?.length || 0}
           </div>
           <div className="stat-lbl">Total</div>
         </div>
@@ -93,7 +103,7 @@ export default function AttendanceMonitor() {
 
         {loading ? (
           <p style={{ textAlign: "center", padding: 20, color: "#6b7280" }}>
-            Loading...
+            Loading attendance records...
           </p>
         ) : (
           <table>
@@ -109,7 +119,7 @@ export default function AttendanceMonitor() {
             </thead>
             <tbody>
               {filtered.map((r, i) => (
-                <tr key={r.id}>
+                <tr key={r.id || i}>
                   <td style={{ color: "#9ca3af" }}>{i + 1}</td>
                   <td style={{ fontWeight: 600 }}>{r.name}</td>
                   <td style={{ color: "#6b7280" }}>{r.username}</td>
@@ -141,6 +151,13 @@ export default function AttendanceMonitor() {
                   </td>
                 </tr>
               ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan="6" style={{ textAlign: "center", padding: 20, color: "#9ca3af" }}>
+                    No records found for this date.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         )}

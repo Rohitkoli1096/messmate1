@@ -17,27 +17,35 @@ function calcEndDate(startDate, duration) {
   return d.toISOString().split('T')[0];
 }
 
-// GET my subscription (student)
+// ==========================================
+// 📩 1. GET: My subscription (Student)
+// ==========================================
 router.get('/my', authMiddleware, async (req, res) => {
   try {
     const [rows] = await db.query(
-      'SELECT s.*, p.paid_amount, p.total_amount, p.status as payment_status FROM subscriptions s LEFT JOIN payments p ON p.subscription_id=s.id WHERE s.user_id=? AND s.is_active=1 ORDER BY s.created_at DESC LIMIT 1',
+      `SELECT s.*, p.paid_amount, p.total_amount, p.status as payment_status 
+       FROM subscriptions s 
+       LEFT JOIN payments p ON p.subscription_id = s.id 
+       WHERE s.user_id = ? AND s.is_active = 1 
+       ORDER BY s.created_at DESC LIMIT 1`,
       [req.user.id]
-  );
+    );
     res.json(rows[0] || null);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// GET all subscriptions (admin)
+// ==========================================
+// 📋 2. GET: All subscriptions (Admin)
+// ==========================================
 router.get('/', authMiddleware, adminOnly, async (req, res) => {
   try {
     const [rows] = await db.query(`
       SELECT s.*, u.name, u.username, p.paid_amount, p.total_amount, p.status as payment_status
       FROM subscriptions s
-      JOIN users u ON u.id=s.user_id
-      LEFT JOIN payments p ON p.subscription_id=s.id
+      JOIN users u ON u.id = s.user_id
+      LEFT JOIN payments p ON p.subscription_id = s.id
       ORDER BY s.created_at DESC
     `);
     res.json(rows);
@@ -46,58 +54,89 @@ router.get('/', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-// POST assign plan (admin)
+// ==========================================
+// 🚀 3. POST: Assign plan (Admin)
+// ==========================================
 router.post('/', authMiddleware, adminOnly, async (req, res) => {
+  const connection = await db.getConnection(); // Use transaction for data safety
   try {
+    await connection.beginTransaction();
+
     const { user_id, plan_type, duration, start_date, paid_amount } = req.body;
     const key = `${plan_type}_${duration}`;
     const price = PLAN_PRICES[key];
-    if (!price) return res.status(400).json({ message: 'Invalid plan' });
+    
+    if (!price) return res.status(400).json({ message: 'Invalid plan configuration' });
 
     const end_date = calcEndDate(start_date, duration);
 
-    // Deactivate old subscription
-    await db.query('UPDATE subscriptions SET is_active=0 WHERE user_id=? AND is_active=1', [user_id]);
+    // 1. Deactivate old subscriptions
+    await connection.query('UPDATE subscriptions SET is_active = 0 WHERE user_id = ?', [user_id]);
 
-    const [result] = await db.query(
-      'INSERT INTO subscriptions (user_id,plan_type,duration,price,start_date,end_date) VALUES (?,?,?,?,?,?)',
+    // 2. Insert new subscription
+    const [subResult] = await connection.query(
+      'INSERT INTO subscriptions (user_id, plan_type, duration, price, start_date, end_date, is_active) VALUES (?,?,?,?,?,?,1)',
       [user_id, plan_type, duration, price, start_date, end_date]
     );
 
-    const subId = result.insertId;
-    const paidAmt = paid_amount || 0;
-    const status = paidAmt >= price ? 'paid' : paidAmt > 0 ? 'partial' : 'pending';
+    const subId = subResult.insertId;
+    const paidAmt = parseFloat(paid_amount) || 0;
+    const status = paidAmt >= price ? 'paid' : (paidAmt > 0 ? 'partial' : 'pending');
 
-    await db.query(
-      'INSERT INTO payments (user_id,subscription_id,total_amount,paid_amount,status) VALUES (?,?,?,?,?)',
+    // 3. Insert payment record
+    await connection.query(
+      'INSERT INTO payments (user_id, subscription_id, total_amount, paid_amount, status) VALUES (?,?,?,?,?)',
       [user_id, subId, price, paidAmt, status]
     );
 
-    // Create notification
-    await db.query(
-      'INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,?)',
-      [user_id, 'Plan Assigned', `Your ${plan_type} meal plan has been activated from ${start_date} to ${end_date}.`, 'plan']
+    // 4. ✅ Trigger Active Notification for Student
+    const notifTitle = "New Plan Activated 🟢";
+    const notifMsg = `Your ${plan_type.replace('_', ' ')} plan (${duration}) is active until ${end_date}. Payment Status: ${status.toUpperCase()}.`;
+    
+    await connection.query(
+      'INSERT INTO notifications (user_id, title, message, type, is_read) VALUES (?,?,?,?,0)',
+      [user_id, notifTitle, notifMsg, 'payment']
     );
 
-    res.status(201).json({ message: 'Subscription assigned', subscription_id: subId });
+    await connection.commit();
+    res.status(201).json({ success: true, message: 'Subscription assigned and student notified', subscription_id: subId });
   } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
+    await connection.rollback();
+    res.status(500).json({ message: 'Transaction failed', error: err.message });
+  } finally {
+    connection.release();
   }
 });
 
-// PUT extend subscription (admin)
+// ==========================================
+// ⏳ 4. PUT: Extend subscription (Admin)
+// ==========================================
 router.put('/:id/extend', authMiddleware, adminOnly, async (req, res) => {
   try {
     const { days } = req.body;
-    const [subs] = await db.query('SELECT * FROM subscriptions WHERE id=?', [req.params.id]);
+    const [subs] = await db.query('SELECT * FROM subscriptions WHERE id = ?', [req.params.id]);
+    
     if (!subs.length) return res.status(404).json({ message: 'Subscription not found' });
 
-    const newEnd = new Date(subs[0].end_date);
+    const oldEnd = new Date(subs[0].end_date);
+    const newEnd = new Date(oldEnd);
     newEnd.setDate(newEnd.getDate() + parseInt(days));
     const newEndStr = newEnd.toISOString().split('T')[0];
 
-    await db.query('UPDATE subscriptions SET end_date=? WHERE id=?', [newEndStr, req.params.id]);
-    res.json({ message: `Extended by ${days} days. New end: ${newEndStr}` });
+    await db.query('UPDATE subscriptions SET end_date = ? WHERE id = ?', [newEndStr, req.params.id]);
+
+    // ✅ Notify Student about Extension
+    await db.query(
+      'INSERT INTO notifications (user_id, title, message, type, is_read) VALUES (?,?,?,?,0)',
+      [
+        subs[0].user_id, 
+        "Plan Extended ⏳", 
+        `Admin has extended your plan by ${days} days. New expiry: ${newEndStr}.`, 
+        "info"
+      ]
+    );
+
+    res.json({ success: true, message: `Extended to ${newEndStr}` });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }

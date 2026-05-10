@@ -2,23 +2,30 @@ import React, { useEffect, useState } from "react";
 import { paymentsAPI } from "../../api";
 import toast from "react-hot-toast";
 
+// Define the backend URL where images are hosted
 const API_BASE_URL = "http://localhost:5001";
 
 export default function PaymentManagement() {
+  // Initialize as an empty array to prevent .reduce errors on initial render
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editId, setEditId] = useState(null);
   const [editAmt, setEditAmt] = useState("");
 
-  // State for image popup modal
-  const [selectedImg, setSelectedImg] = useState(null);
-
   const load = () => {
     setLoading(true);
     paymentsAPI
       .getAll()
-      .then((r) => setPayments(r.data))
-      .catch(() => toast.error("Failed to load payments"))
+      .then((r) => {
+        // FIX: Remove .data as api.js interceptor already unwrapped it
+        const data = Array.isArray(r) ? r : (r?.data || []);
+        setPayments(data);
+      })
+      .catch((err) => {
+        console.error("Payment load error:", err);
+        toast.error("Failed to load payments");
+        setPayments([]);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -37,150 +44,27 @@ export default function PaymentManagement() {
     }
   };
 
-  // --- CSV Export Logic ---
-  const downloadCSV = () => {
-    if (payments.length === 0) return toast.error("No data to export");
-
-    const headers = [
-      "Student Name",
-      "Plan",
-      "Total Amount",
-      "Paid Amount",
-      "Remaining",
-      "Status",
-    ];
-    const rows = payments.map((p) => [
-      `"${p.name}"`,
-      `"${p.plan_type}"`,
-      p.total_amount,
-      p.paid_amount,
-      Number(p.total_amount) - Number(p.paid_amount),
-      `"${p.status}"`,
-    ]);
-
-    const csvContent = [headers, ...rows].map((e) => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute(
-      "download",
-      `Payments_Report_${new Date().toLocaleDateString()}.csv`,
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const totalCollected = payments.reduce(
-    (s, p) => s + Number(p.paid_amount),
+  // FIX: Added safety check to ensure payments is an array before reducing
+  const safePayments = Array.isArray(payments) ? payments : [];
+  
+  const totalCollected = safePayments.reduce(
+    (s, p) => s + Number(p.paid_amount || 0),
     0,
   );
-  const totalPending = payments.reduce(
-    (s, p) => s + (Number(p.total_amount) - Number(p.paid_amount)),
+  const totalPending = safePayments.reduce(
+    (s, p) => s + (Number(p.total_amount || 0) - Number(p.paid_amount || 0)),
     0,
   );
 
   return (
-    <div
-      style={{
-        padding: "10px",
-        position: "relative",
-        fontFamily: "Inter, sans-serif",
-      }}
-    >
-      {/* --- IMAGE POPUP MODAL --- */}
-      {selectedImg && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
-            backgroundColor: "rgba(0,0,0,0.85)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 9999,
-            cursor: "zoom-out",
-          }}
-          onClick={() => setSelectedImg(null)}
-        >
-          <div
-            style={{ position: "relative", maxWidth: "90%", maxHeight: "90%" }}
-          >
-            <button
-              onClick={() => setSelectedImg(null)}
-              style={{
-                position: "absolute",
-                top: -45,
-                right: 0,
-                background: "#fff",
-                border: "none",
-                borderRadius: "50%",
-                width: 32,
-                height: 32,
-                cursor: "pointer",
-                fontWeight: "bold",
-                fontSize: "16px",
-              }}
-            >
-              ✕
-            </button>
-            <img
-              src={selectedImg}
-              alt="Receipt Preview"
-              style={{
-                maxWidth: "100%",
-                maxHeight: "80vh",
-                borderRadius: "12px",
-                boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Header & Export Button */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "15px",
-        }}
-      >
-        <h2 style={{ fontSize: "20px", fontWeight: 700, color: "#1e293b" }}>
-          Payment Dashboard
-        </h2>
-        <button
-          onClick={downloadCSV}
-          style={{
-            background: "#10B981",
-            color: "white",
-            padding: "10px 18px",
-            borderRadius: "8px",
-            border: "none",
-            fontWeight: 600,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-          }}
-        >
-          📥 Export CSV
-        </button>
-      </div>
-
+    <div style={{ padding: "10px" }}>
       {/* Statistics Cards */}
       <div
         className="stat-grid"
         style={{
-          display: "grid",
           gridTemplateColumns: "repeat(3,1fr)",
           gap: "16px",
-          marginBottom: 25,
+          marginBottom: 20,
         }}
       >
         <div
@@ -190,22 +74,22 @@ export default function PaymentManagement() {
             padding: "20px",
             borderRadius: "12px",
             border: "1px solid #eef2ff",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
           }}
         >
+          <div className="stat-icon" style={{ marginBottom: 8 }}>
+            ✅
+          </div>
           <div
-            style={{
-              color: "#22C55E",
-              fontSize: "12px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              marginBottom: 5,
-            }}
+            className="stat-val"
+            style={{ color: "#22C55E", fontSize: "20px", fontWeight: 800 }}
+          >
+            ₹{totalCollected.toLocaleString("en-IN")}
+          </div>
+          <div
+            className="stat-lbl"
+            style={{ color: "#64748b", fontSize: "12px", fontWeight: 600 }}
           >
             Total Collected
-          </div>
-          <div style={{ color: "#1e293b", fontSize: "24px", fontWeight: 800 }}>
-            ₹{totalCollected.toLocaleString("en-IN")}
           </div>
         </div>
         <div
@@ -215,22 +99,22 @@ export default function PaymentManagement() {
             padding: "20px",
             borderRadius: "12px",
             border: "1px solid #fff1f2",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
           }}
         >
+          <div className="stat-icon" style={{ marginBottom: 8 }}>
+            ⏳
+          </div>
           <div
-            style={{
-              color: "#F59E0B",
-              fontSize: "12px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              marginBottom: 5,
-            }}
+            className="stat-val"
+            style={{ color: "#F59E0B", fontSize: "20px", fontWeight: 800 }}
+          >
+            ₹{totalPending.toLocaleString("en-IN")}
+          </div>
+          <div
+            className="stat-lbl"
+            style={{ color: "#64748b", fontSize: "12px", fontWeight: 600 }}
           >
             Pending Amount
-          </div>
-          <div style={{ color: "#1e293b", fontSize: "24px", fontWeight: 800 }}>
-            ₹{totalPending.toLocaleString("en-IN")}
           </div>
         </div>
         <div
@@ -240,22 +124,22 @@ export default function PaymentManagement() {
             padding: "20px",
             borderRadius: "12px",
             border: "1px solid #f5f3ff",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
           }}
         >
+          <div className="stat-icon" style={{ marginBottom: 8 }}>
+            👥
+          </div>
           <div
-            style={{
-              color: "#4F46E5",
-              fontSize: "12px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              marginBottom: 5,
-            }}
+            className="stat-val"
+            style={{ color: "#4F46E5", fontSize: "20px", fontWeight: 800 }}
+          >
+            {safePayments.length}
+          </div>
+          <div
+            className="stat-lbl"
+            style={{ color: "#64748b", fontSize: "12px", fontWeight: 600 }}
           >
             Total Records
-          </div>
-          <div style={{ color: "#1e293b", fontSize: "24px", fontWeight: 800 }}>
-            {payments.length}
           </div>
         </div>
       </div>
@@ -269,9 +153,20 @@ export default function PaymentManagement() {
           boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
         }}
       >
+        <h3
+          style={{
+            marginBottom: 20,
+            fontSize: 16,
+            fontWeight: 700,
+            color: "#1e1b4b",
+          }}
+        >
+          💰 All Payment Records
+        </h3>
+
         {loading ? (
           <div style={{ textAlign: "center", padding: 40, color: "#64748b" }}>
-            Loading records...
+            <p>Fetching payments...</p>
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -284,84 +179,36 @@ export default function PaymentManagement() {
                     borderBottom: "2px solid #f1f5f9",
                   }}
                 >
-                  <th
-                    style={{
-                      padding: "14px 16px",
-                      fontSize: "13px",
-                      color: "#64748b",
-                    }}
-                  >
-                    STUDENT
+                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
+                    Student
                   </th>
-                  <th
-                    style={{
-                      padding: "14px 16px",
-                      fontSize: "13px",
-                      color: "#64748b",
-                    }}
-                  >
-                    PLAN
+                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
+                    Plan Details
                   </th>
-                  <th
-                    style={{
-                      padding: "14px 16px",
-                      fontSize: "13px",
-                      color: "#64748b",
-                    }}
-                  >
-                    TOTAL
+                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
+                    Total
                   </th>
-                  <th
-                    style={{
-                      padding: "14px 16px",
-                      fontSize: "13px",
-                      color: "#64748b",
-                    }}
-                  >
-                    PAID
+                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
+                    Paid
                   </th>
-                  <th
-                    style={{
-                      padding: "14px 16px",
-                      fontSize: "13px",
-                      color: "#64748b",
-                    }}
-                  >
-                    REMAINING
+                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
+                    Remaining
                   </th>
-                  <th
-                    style={{
-                      padding: "14px 16px",
-                      fontSize: "13px",
-                      color: "#64748b",
-                    }}
-                  >
-                    STATUS
+                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
+                    Status
                   </th>
-                  <th
-                    style={{
-                      padding: "14px 16px",
-                      fontSize: "13px",
-                      color: "#64748b",
-                    }}
-                  >
-                    RECEIPT
+                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
+                    Screenshot
                   </th>
-                  <th
-                    style={{
-                      padding: "14px 16px",
-                      fontSize: "13px",
-                      color: "#64748b",
-                    }}
-                  >
-                    ACTION
+                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
+                    Action
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {payments.map((p) => {
+                {safePayments.map((p) => {
                   const remaining =
-                    Number(p.total_amount) - Number(p.paid_amount);
+                    Number(p.total_amount || 0) - Number(p.paid_amount || 0);
                   const imageUrl = p.screenshot_url
                     ? `${API_BASE_URL}/${p.screenshot_url}`
                     : null;
@@ -380,7 +227,13 @@ export default function PaymentManagement() {
                       >
                         {p.name}
                       </td>
-                      <td style={{ padding: "16px", fontSize: "12px" }}>
+                      <td
+                        style={{
+                          padding: "16px",
+                          fontSize: "12px",
+                          color: "#64748b",
+                        }}
+                      >
                         <span
                           style={{
                             display: "block",
@@ -390,10 +243,10 @@ export default function PaymentManagement() {
                         >
                           {p.plan_type?.toUpperCase()}
                         </span>
-                        <span style={{ color: "#94a3b8" }}>{p.duration}</span>
+                        {p.duration}
                       </td>
                       <td style={{ padding: "16px" }}>
-                        ₹{Number(p.total_amount).toLocaleString("en-IN")}
+                        ₹{Number(p.total_amount || 0).toLocaleString("en-IN")}
                       </td>
                       <td
                         style={{
@@ -402,7 +255,7 @@ export default function PaymentManagement() {
                           fontWeight: 700,
                         }}
                       >
-                        ₹{Number(p.paid_amount).toLocaleString("en-IN")}
+                        ₹{Number(p.paid_amount || 0).toLocaleString("en-IN")}
                       </td>
                       <td
                         style={{
@@ -415,24 +268,11 @@ export default function PaymentManagement() {
                       </td>
                       <td style={{ padding: "16px" }}>
                         <span
+                          className={`badge ${p.status === "paid" ? "badge-green" : p.status === "partial" ? "badge-yellow" : "badge-red"}`}
                           style={{
                             textTransform: "uppercase",
                             fontSize: "10px",
                             padding: "4px 8px",
-                            borderRadius: "4px",
-                            background:
-                              p.status === "paid"
-                                ? "#DCFCE7"
-                                : p.status === "partial"
-                                  ? "#FEF3C7"
-                                  : "#FEE2E2",
-                            color:
-                              p.status === "paid"
-                                ? "#166534"
-                                : p.status === "partial"
-                                  ? "#92400E"
-                                  : "#991B1B",
-                            fontWeight: 700,
                           }}
                         >
                           {p.status}
@@ -444,6 +284,7 @@ export default function PaymentManagement() {
                             style={{
                               display: "flex",
                               flexDirection: "column",
+                              alignItems: "center",
                               gap: "4px",
                             }}
                           >
@@ -456,33 +297,29 @@ export default function PaymentManagement() {
                                 borderRadius: "6px",
                                 objectFit: "cover",
                                 border: "1px solid #e2e8f0",
-                                cursor: "pointer",
                               }}
-                              onClick={() => setSelectedImg(imageUrl)}
                               onError={(e) => {
                                 e.target.src =
                                   "https://via.placeholder.com/35?text=ERR";
                               }}
                             />
-                            <button
-                              onClick={() => setSelectedImg(imageUrl)}
+                            <a
+                              href={imageUrl}
+                              target="_blank"
+                              rel="noreferrer"
                               style={{
-                                background: "none",
-                                border: "none",
                                 color: "#4F46E5",
-                                fontSize: "10px",
+                                fontSize: 10,
                                 fontWeight: 700,
-                                cursor: "pointer",
-                                padding: 0,
-                                textAlign: "left",
+                                textDecoration: "none",
                               }}
                             >
-                              VIEW
-                            </button>
+                              VIEW FULL
+                            </a>
                           </div>
                         ) : (
                           <span style={{ color: "#cbd5e1", fontSize: 11 }}>
-                            No file
+                            No Receipt
                           </span>
                         )}
                       </td>
@@ -502,25 +339,23 @@ export default function PaymentManagement() {
                               type="number"
                             />
                             <button
+                              className="btn-edit"
                               style={{
                                 background: "#4F46E5",
                                 color: "#fff",
                                 padding: "6px 10px",
                                 borderRadius: "4px",
                                 border: "none",
-                                cursor: "pointer",
                               }}
                               onClick={() => handleUpdate(p.id)}
                             >
                               Save
                             </button>
                             <button
+                              className="btn-danger"
                               style={{
-                                background: "#f1f5f9",
-                                border: "none",
                                 padding: "6px 10px",
                                 borderRadius: "4px",
-                                cursor: "pointer",
                               }}
                               onClick={() => setEditId(null)}
                             >
@@ -529,6 +364,7 @@ export default function PaymentManagement() {
                           </div>
                         ) : (
                           <button
+                            className="btn-edit"
                             style={{
                               padding: "6px 12px",
                               fontSize: "12px",
@@ -537,14 +373,13 @@ export default function PaymentManagement() {
                               color: "#4F46E5",
                               border: "1px solid #ddd6fe",
                               borderRadius: "6px",
-                              cursor: "pointer",
                             }}
                             onClick={() => {
                               setEditId(p.id);
                               setEditAmt(p.paid_amount);
                             }}
                           >
-                            Edit
+                            Update
                           </button>
                         )}
                       </td>

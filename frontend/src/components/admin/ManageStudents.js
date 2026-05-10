@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 const EMPTY = { name: "", username: "", password: "", phone: "", room: "" };
 
 export default function ManageStudents() {
+  // Initialize as empty array to prevent .filter errors
   const [students, setStudents] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [editing, setEditing] = useState(null);
@@ -15,8 +16,16 @@ export default function ManageStudents() {
     setLoading(true);
     studentsAPI
       .getAll()
-      .then((r) => setStudents(r.data))
-      .catch(() => toast.error("Failed to load students"))
+      .then((r) => {
+        // SMART FIX: Check if r is the data or contains .data
+        const data = Array.isArray(r) ? r : (r?.data || []);
+        setStudents(data);
+      })
+      .catch((err) => {
+        console.error("Load error:", err);
+        toast.error("Failed to load students");
+        setStudents([]); // Set to empty array on error to prevent crash
+      })
       .finally(() => setLoading(false));
   };
 
@@ -48,7 +57,6 @@ export default function ManageStudents() {
   };
 
   const handleDelete = async (id, name) => {
-    // 1. Confirm before action
     if (
       !window.confirm(
         `Are you sure you want to delete ${name}? This will also remove all their attendance and payment history.`,
@@ -58,12 +66,9 @@ export default function ManageStudents() {
 
     const tid = toast.loading("Deleting student...");
     try {
-      // 2. Call the updated backend delete route
       await studentsAPI.delete(id);
-
-      // 3. Update UI
       toast.success("Student deleted successfully", { id: tid });
-      load(); // Reload the list to show current data
+      load(); 
     } catch (err) {
       console.error("Delete error:", err);
       toast.error(
@@ -74,10 +79,11 @@ export default function ManageStudents() {
     }
   };
 
-  const filtered = students.filter(
+  // SMART FIX: Use optional chaining and fallback array to prevent .filter crash
+  const filtered = (students || []).filter(
     (s) =>
-      s.name?.toLowerCase().includes(search.toLowerCase()) ||
-      s.username?.toLowerCase().includes(search.toLowerCase()),
+      s?.name?.toLowerCase().includes(search.toLowerCase()) ||
+      s?.username?.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -102,7 +108,6 @@ export default function ManageStudents() {
         >
           {editing ? (
             <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {/* Edit (Pen) Icon */}
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M3 17.25V21H6.75L17.81 9.94L14.06 6.19L3 17.25Z"
@@ -119,7 +124,6 @@ export default function ManageStudents() {
             </span>
           ) : (
             <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {/* Add (Plus) Icon */}
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                 <line
                   x1="12"
@@ -375,14 +379,7 @@ export default function ManageStudents() {
                             fontWeight: 600,
                             transition: "0.2s",
                           }}
-                          onMouseOver={(e) =>
-                            (e.currentTarget.style.background = "#e0e7ff")
-                          }
-                          onMouseOut={(e) =>
-                            (e.currentTarget.style.background = "#eef2ff")
-                          }
                         >
-                          {/* Pen / Edit Icon */}
                           <svg
                             width="16"
                             height="16"
@@ -417,14 +414,7 @@ export default function ManageStudents() {
                             fontWeight: 600,
                             transition: "0.2s",
                           }}
-                          onMouseOver={(e) =>
-                            (e.currentTarget.style.background = "#fecaca")
-                          }
-                          onMouseOut={(e) =>
-                            (e.currentTarget.style.background = "#fee2e2")
-                          }
                         >
-                          {/* Trash Icon */}
                           <svg
                             width="16"
                             height="16"

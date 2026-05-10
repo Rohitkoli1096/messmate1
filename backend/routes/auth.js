@@ -14,10 +14,6 @@ router.post("/login", async (req, res) => {
     if (!rows.length)
       return res.status(401).json({ message: "Invalid credentials" });
     const user = rows[0];
-    const hashed = await bcrypt.hash(password, 10);
-    console.log("password:" + hashed);
-    console.log("Stored:", user.password);
-    console.log("Match:", await bcrypt.compare(password, user.password));
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ message: "Password is wrong" });
     const token = jwt.sign(
