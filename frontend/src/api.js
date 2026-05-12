@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 const API = axios.create({
   baseURL: process.env.REACT_APP_BACKEND_URL
     ? `${process.env.REACT_APP_BACKEND_URL.replace(/\/$/, "")}/api`
-    : "http://localhost:5001/api", // Fallback to your local port
+    : "https://messmate1.onrender.com/api", // Fallback to your local port
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
