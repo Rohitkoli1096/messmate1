@@ -14,7 +14,7 @@ const { createOrder, verifyCheckoutSignature } = require("../services/payments/g
 // ============================
 const uploadDir = './uploads/';
 if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
+  fs.mkdirSync(uploadDir, { recursive: true });
 }
 
 // ============================
@@ -35,6 +35,63 @@ const upload = multer({
                filetypes.test(file.mimetype);
     if (ok) return cb(null, true);
     cb(new Error('Only images allowed'));
+  }
+});
+
+// ==========================================
+// 🚀 NEW: SETTLE BALANCE (Student Action)
+// ==========================================
+/**
+ * Logic: 
+ * 1. Inserts a record into the 'transactions' table with the UTR.
+ * 2. Updates the 'payments' table status to 'pending'.
+ * 3. Notifies Admins of the new submission.
+ */
+router.post('/settle', authMiddleware, async (req, res) => {
+  const { subscription_id, amount, utr_number, title } = req.body;
+  const user_id = req.user.id;
+
+  if (!utr_number || utr_number.length < 10) {
+    return res.status(400).json({ message: "Valid 12-digit UTR/Reference number required" });
+  }
+
+  try {
+    // 1. Insert into 'transactions' table (As per your new schema)
+    const [transResult] = await db.query(
+      `INSERT INTO transactions 
+      (user_id, subscription_id, title, total_amount, paid_amount, status, utr_number, method) 
+      VALUES (?, ?, ?, ?, ?, 'PENDING', ?, 'UPI')`,
+      [user_id, subscription_id, title || 'Balance Settlement', amount, amount, utr_number]
+    );
+
+    // 2. Update the main 'payments' table status to pending
+    await db.query(
+      "UPDATE payments SET status = 'pending' WHERE user_id = ? AND subscription_id = ?",
+      [user_id, subscription_id]
+    );
+
+    // 3. Notify Admin
+    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin'");
+    if (admins.length > 0) {
+      const adminNotifs = admins.map(admin => [
+        admin.id,
+        "New Settlement Request 💰",
+        `Student ID ${user_id} submitted a payment of ₹${amount}. UTR: ${utr_number}`,
+        "payment",
+        0
+      ]);
+      await db.query("INSERT INTO notifications (user_id, title, message, type, is_read) VALUES ?", [adminNotifs]);
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Settlement submitted for admin verification',
+      transactionId: transResult.insertId 
+    });
+
+  } catch (err) {
+    console.error("Settlement Error:", err);
+    res.status(500).json({ message: 'Database Error while processing settlement' });
   }
 });
 

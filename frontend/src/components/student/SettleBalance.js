@@ -1,200 +1,419 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   Box, Typography, IconButton, Stack, Card, TextField, 
-  Button, Radio, RadioGroup, Container, 
-  styled, alpha, Radio as MuiRadio, Divider
+  Button, RadioGroup, Container, styled, alpha, 
+  Radio as MuiRadio, InputAdornment, Divider, Paper
 } from "@mui/material";
-
-// REAL FUNCTIONALITY IMPORTS
 import { QRCodeCanvas } from "qrcode.react"; 
-import axios from "axios"; 
-import { useParams as getParams } from "react-router-dom";
-
-// ICON IMPORTS
-import ChevronLeft from "@mui/icons-material/ChevronLeft";
-import QrCodeScanner from "@mui/icons-material/QrCodeScanner";
-import Smartphone from "@mui/icons-material/Smartphone";
-import CheckCircle from "@mui/icons-material/CheckCircle";
-
 import { motion, AnimatePresence } from "framer-motion";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
+import axios from "axios";
 
-// --- THEME ---
+// Icons
+import ChevronLeft from "@mui/icons-material/ChevronLeftRounded";
+import TimerOutlined from "@mui/icons-material/TimerOutlined";
+import QrCodeScanner from "@mui/icons-material/QrCodeScannerRounded";
+import Smartphone from "@mui/icons-material/SmartphoneRounded";
+import CheckCircle from "@mui/icons-material/CheckCircleRounded";
+import VerifiedUserOutlined from "@mui/icons-material/VerifiedUserOutlined";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import ReceiptLongOutlined from "@mui/icons-material/ReceiptLongOutlined";
+
 const THEME = {
-  primary: "#4F46E5",
+  primary: "#4F46E5", // Indigo
+  secondary: "#0F172A", // Navy
+  success: "#10B981", // Emerald
+  background: "#F8FAFC",
   surface: "#FFFFFF",
-  bg: "#F8FAFC",
-  slate: "#64748B",
-  border: "#E2E8F0"
+  border: "#E2E8F0",
+  textSecondary: "#64748B"
 };
 
-const Root = styled(Box)({ backgroundColor: THEME.bg, minHeight: "100vh", paddingBottom: "40px" });
+// --- STYLED COMPONENTS ---
+
+const StyledPaper = styled(Paper)({
+  borderRadius: "24px",
+  padding: "24px",
+  boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+  border: `1px solid ${THEME.border}`,
+});
 
 const PaymentOption = styled(Box)(({ selected }) => ({
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: "14px 16px", borderRadius: "14px",
+  display: 'flex', 
+  alignItems: 'center', 
+  justifyContent: 'space-between', 
+  padding: "20px", 
+  borderRadius: "16px",
   border: `2px solid ${selected ? THEME.primary : THEME.border}`,
   backgroundColor: selected ? alpha(THEME.primary, 0.04) : THEME.surface,
-  marginBottom: "12px", cursor: 'pointer', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  cursor: 'pointer', 
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  "&:hover": { 
+    borderColor: THEME.primary,
+    boxShadow: `0 4px 12px ${alpha(THEME.primary, 0.1)}`
+  }
 }));
 
-const QRBox = styled(Box)({
-  padding: "20px", background: "#fff", borderRadius: "20px", display: "inline-block",
-  boxShadow: "0 10px 25px rgba(0,0,0,0.05)", border: `1px solid ${THEME.border}`
+const UTRInput = styled(TextField)({
+  "& .MuiOutlinedInput-root": {
+    borderRadius: "16px",
+    backgroundColor: THEME.background,
+    fontSize: "1.1rem",
+    fontWeight: 700,
+    "& fieldset": { borderColor: THEME.border },
+    "&:hover fieldset": { borderColor: THEME.primary },
+    "&.Mui-focused fieldset": { borderColor: THEME.primary },
+  },
 });
 
 export default function SettleBalance() {
-  const { id } = useParams(); // Get student ID from URL
+  const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [method, setMethod] = useState("qr_scan");
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(true);
-  
-  // Data from Database
-  const [dbData, setDbData] = useState({
-    amount: 0,
-    studentName: "",
-    upiString: "",
-    subscriptionId: null
-  });
+  const [utr, setUtr] = useState("");
+  const [timeLeft, setTimeLeft] = useState(600);
 
-  const [utrNumber, setUtrNumber] = useState("");
+  const payableAmount = location.state?.amount || 0;
+  const subscriptionId = location.state?.subscriptionId || 0;
+  const upiId = "7020572471@ibl"; 
+  const upiLink = `upi://pay?pa=${upiId}&pn=MessMate&am=${payableAmount}&cu=INR`;
 
-  // 1. FETCH REAL DATA FROM DATABASE ON LOAD
   useEffect(() => {
-    const getPaymentDetails = async () => {
-      try {
-        const res = await axios.get(`http://localhost:5001/api/payments/payment-details/${id}`);
-        setDbData(res.data);
-      } catch (err) {
-        toast.error("Could not load payment data");
-      } finally {
-        setFetching(false);
-      }
-    };
-    getParams && getPaymentDetails();
-  }, [id]);
+    const timer = setInterval(() => setTimeLeft((p) => (p > 0 ? p - 1 : 0)), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-  // 2. PROCESS PAYMENT SUBMISSION
-  const handlePaymentSubmit = async () => {
-    if (!utrNumber || utrNumber.length < 6) {
-      toast.error("Please enter a valid UTR / Transaction ID");
+  const handleVerifySubmission = async () => {
+    if (utr.length < 12) {
+      toast.error("Please enter the 12-digit UTR from your bank app");
       return;
     }
 
     setLoading(true);
-    const loadToast = toast.loading("Submitting to admin for verification...");
+    const apiToast = toast.loading("Confirming settlement...");
 
     try {
-      await axios.post("http://localhost:5001/api/payments/submit-settlement", {
-        user_id: id,
-        subscription_id: dbData.subscriptionId,
-        amount: dbData.amount,
-        utr_number: utrNumber,
-        method: "UPI"
+      const response = await axios.post("http://localhost:5001/api/payments/settle", {
+        subscription_id: subscriptionId,
+        amount: payableAmount,
+        utr_number: utr,
+        title: "Manual UPI Settlement"
       });
 
-      toast.success("Submitted! Admin will verify soon.", { id: loadToast });
-      setTimeout(() => navigate("/student/home"), 2000);
+      if (response.data.success) {
+        toast.success("Payment Logged Successfully", { id: apiToast });
+        setTimeout(() => navigate("/student/payment"), 2000);
+      }
     } catch (error) {
-      toast.error("Submission failed. Try again.", { id: loadToast });
+      toast.error("Network synchronization failed", { id: apiToast });
+    } finally {
       setLoading(false);
     }
   };
 
-  if (fetching) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>Loading...</Box>;
-
   return (
-    <Root>
-      <Toaster position="top-center" />
+    <Box sx={{ bgcolor: THEME.background, minHeight: "100vh", pb: 6 }}>
       <Container maxWidth="xs">
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ py: 3 }}>
-            <IconButton onClick={() => navigate(-1)} sx={{ border: `1px solid ${THEME.border}`, bgcolor: THEME.surface }}>
-              <ChevronLeft />
-            </IconButton>
-            <Typography variant="h6" fontWeight={900}>Settle Balance</Typography>
-            <Box sx={{ width: 40 }} />
-          </Stack>
-
-          {/* DYNAMIC BALANCE CARD */}
-          <Card sx={{ p: 3, borderRadius: "24px", bgcolor: THEME.primary, color: "#FFF", mb: 4, boxShadow: `0 20px 40px ${alpha(THEME.primary, 0.3)}` }}>
-            <Typography sx={{ opacity: 0.8, fontSize: '0.8rem', fontWeight: 600 }}>PAYABLE BY {dbData.studentName.toUpperCase()}</Typography>
-            <Typography sx={{ fontSize: '2.5rem', fontWeight: 900 }}>₹{dbData.amount}</Typography>
-            <Divider sx={{ my: 2, bgcolor: "rgba(255,255,255,0.1)" }} />
-            <Typography sx={{ fontSize: '0.75rem', opacity: 0.8 }}>Pending Settlement for Sub #{dbData.subscriptionId}</Typography>
-          </Card>
-
-          <RadioGroup value={method} onChange={(e) => setMethod(e.target.value)}>
-            <PaymentOption selected={method === "qr_scan"} onClick={() => setMethod("qr_scan")}>
-              <Stack direction="row" spacing={2} alignItems="center">
-                <QrCodeScanner sx={{ color: method === "qr_scan" ? THEME.primary : THEME.slate }} />
-                <Typography sx={{ fontWeight: 700 }}>Scan Dynamic QR</Typography>
-              </Stack>
-              <MuiRadio value="qr_scan" size="small" />
-            </PaymentOption>
-
-            <PaymentOption selected={method === "manual"} onClick={() => setMethod("manual")}>
-              <Stack direction="row" spacing={2} alignItems="center">
-                <Smartphone sx={{ color: method === "manual" ? THEME.primary : THEME.slate }} />
-                <Typography sx={{ fontWeight: 700 }}>Enter UTR Manually</Typography>
-              </Stack>
-              <MuiRadio value="manual" size="small" />
-            </PaymentOption>
-          </RadioGroup>
-
-          <AnimatePresence mode="wait">
-            {method === "qr_scan" ? (
-              <motion.div key="qr" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ textAlign: 'center', marginTop: '24px' }}>
-                <QRBox>
-                  <QRCodeCanvas 
-                    // Append the dynamic amount to the base UPI string from database
-                    value={`${dbData.upiString}&am=${dbData.amount}`} 
-                    size={200} 
-                    level={"H"} 
-                    includeMargin={true}
-                  />
-                </QRBox>
-                <Typography sx={{ mt: 2, fontSize: '0.75rem', color: THEME.slate, fontWeight: 600 }}>
-                  Scan to automatically pay ₹{dbData.amount}
-                </Typography>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-
-          {/* UTR INPUT FIELD (Always visible for confirmation) */}
-          <Box sx={{ mt: 4 }}>
-            <Typography sx={{ mb: 1, fontWeight: 700, fontSize: "0.9rem", color: THEME.slate }}>
-              Transaction / UTR Number
-            </Typography>
-            <TextField 
-              fullWidth 
-              placeholder="Enter 12-digit UTR"
-              value={utrNumber} 
-              onChange={(e) => setUtrNumber(e.target.value)}
-              InputProps={{
-                sx: { borderRadius: '16px', bgcolor: "#fff" },
-                endAdornment: utrNumber.length >= 10 && <CheckCircle sx={{ color: THEME.primary }} />
-              }}
-            />
-          </Box>
-
-          <Button 
-            fullWidth variant="contained" 
-            onClick={handlePaymentSubmit}
-            disabled={loading || dbData.amount <= 0}
-            sx={{ 
-              mt: 4, py: 2, borderRadius: '18px', fontWeight: 900, textTransform: 'none', fontSize: '1.1rem',
-              bgcolor: THEME.primary, '&:hover': { bgcolor: '#4338CA' }
+        {/* HEADER SECTION */}
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          sx={{ py: 3 }}
+        >
+          <IconButton
+            onClick={() => navigate(-1)}
+            sx={{ bgcolor: THEME.surface, boxShadow: 1 }}
+          >
+            <ChevronLeft />
+          </IconButton>
+          <Typography
+            variant="subtitle1"
+            fontWeight={800}
+            sx={{ color: THEME.secondary }}
+          >
+            Secure Checkout
+          </Typography>
+          <Stack
+            direction="row"
+            spacing={0.5}
+            alignItems="center"
+            sx={{
+              color: "#E11D48",
+              bgcolor: "#FFF1F2",
+              px: 1.5,
+              py: 0.5,
+              borderRadius: "12px",
             }}
           >
-            {loading ? "Submitting..." : "Confirm Payment"}
-          </Button>
+            <TimerOutlined sx={{ fontSize: 16 }} />
+            <Typography variant="caption" fontWeight={900}>
+              {Math.floor(timeLeft / 60)}:
+              {(timeLeft % 60).toString().padStart(2, "0")}
+            </Typography>
+          </Stack>
+        </Stack>
 
-        </motion.div>
+        {/* AMOUNT CARD */}
+        <Card
+          sx={{
+            p: 3,
+            borderRadius: "24px",
+            background: `linear-gradient(135deg, ${THEME.secondary} 0%, #1E293B 100%)`,
+            color: "#FFF",
+            mb: 4,
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          <Box sx={{ position: "relative", zIndex: 2 }}>
+            <Typography
+              variant="caption"
+              sx={{ opacity: 0.6, fontWeight: 700, letterSpacing: 1.5 }}
+            >
+              TOTAL PAYABLE
+            </Typography>
+            <Typography variant="h3" fontWeight={900} sx={{ my: 1 }}>
+              ₹{payableAmount}
+            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <ReceiptLongOutlined sx={{ fontSize: 16, opacity: 0.7 }} />
+              <Typography
+                variant="caption"
+                fontWeight={600}
+                sx={{ opacity: 0.8 }}
+              >
+                ID: MM-SUB{subscriptionId}
+              </Typography>
+            </Stack>
+          </Box>
+          <VerifiedUserOutlined
+            sx={{
+              position: "absolute",
+              right: -10,
+              bottom: -10,
+              fontSize: 100,
+              opacity: 0.05,
+            }}
+          />
+        </Card>
+
+        {/* PAYMENT FLOW CONTAINER */}
+        <StyledPaper elevation={0}>
+          <Typography
+            variant="body2"
+            fontWeight={800}
+            color={THEME.textSecondary}
+            mb={2}
+          >
+            SELECT GATEWAY
+          </Typography>
+
+          <RadioGroup
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
+          >
+            <Stack spacing={2}>
+              <PaymentOption
+                selected={method === "qr_scan"}
+                onClick={() => setMethod("qr_scan")}
+              >
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Box
+                    sx={{
+                      p: 1,
+                      bgcolor: alpha(THEME.primary, 0.1),
+                      borderRadius: "12px",
+                    }}
+                  >
+                    <QrCodeScanner sx={{ color: THEME.primary }} />
+                  </Box>
+                  <Box>
+                    <Typography fontWeight={800} variant="body2">
+                      Show QR Code
+                    </Typography>
+                    <Typography variant="caption" color={THEME.textSecondary}>
+                      Pay via any UPI App
+                    </Typography>
+                  </Box>
+                </Stack>
+                <MuiRadio value="qr_scan" size="small" />
+              </PaymentOption>
+
+              <PaymentOption
+                selected={method === "intent"}
+                onClick={() => setMethod("intent")}
+              >
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Box
+                    sx={{
+                      p: 1,
+                      bgcolor: alpha(THEME.success, 0.1),
+                      borderRadius: "12px",
+                    }}
+                  >
+                    <Smartphone sx={{ color: THEME.success }} />
+                  </Box>
+                  <Box>
+                    <Typography fontWeight={800} variant="body2">
+                      Direct UPI App
+                    </Typography>
+                    <Typography variant="caption" color={THEME.textSecondary}>
+                      One-tap payment
+                    </Typography>
+                  </Box>
+                </Stack>
+                <MuiRadio value="intent" size="small" />
+              </PaymentOption>
+            </Stack>
+          </RadioGroup>
+
+          {/* DYNAMIC VISUAL AREA */}
+          <Box
+            sx={{
+              mt: 4,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <AnimatePresence mode="wait">
+              {method === "qr_scan" ? (
+                <motion.div
+                  key="qr"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <Box
+                    sx={{
+                      p: 2,
+                      bgcolor: "#FFF",
+                      borderRadius: "24px",
+                      border: `1px solid ${THEME.border}`,
+                      boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
+                    }}
+                  >
+                    <QRCodeCanvas
+                      value={upiLink}
+                      size={180}
+                      level="H"
+                      includeMargin
+                    />
+                  </Box>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="btn"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  style={{ width: "100%" }}
+                >
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    component="a"
+                    href={upiLink}
+                    sx={{
+                      py: 2,
+                      borderRadius: "16px",
+                      borderStyle: "dashed",
+                      fontWeight: 800,
+                      textTransform: "none",
+                    }}
+                  >
+                    🚀 Launch PhonePe / GPay
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Box>
+        </StyledPaper>
+
+        {/* VERIFICATION SECTION */}
+        <Box sx={{ mt: 4 }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            sx={{ mb: 1.5, px: 1 }}
+          >
+            <Typography
+              variant="caption"
+              fontWeight={900}
+              color={THEME.textSecondary}
+            >
+              SUBMIT TRANSACTION PROOF
+            </Typography>
+            <InfoOutlined sx={{ fontSize: 14, color: THEME.textSecondary }} />
+          </Stack>
+
+          <UTRInput
+            fullWidth
+            placeholder="12-Digit UTR Number"
+            value={utr}
+            onChange={(e) =>
+              setUtr(e.target.value.replace(/\D/g, "").slice(0, 12))
+            }
+            InputProps={{
+              endAdornment: utr.length === 12 && (
+                <InputAdornment position="end">
+                  <CheckCircle sx={{ color: THEME.success }} />
+                </InputAdornment>
+              ),
+            }}
+          />
+
+          <Typography
+            variant="caption"
+            sx={{
+              mt: 1.5,
+              display: "block",
+              px: 1,
+              color: THEME.textSecondary,
+              fontStyle: "italic",
+            }}
+          >
+            * Your balance will be updated after admin verifies the UTR.
+          </Typography>
+
+          <Button
+            fullWidth
+            variant="contained"
+            disabled={loading || utr.length < 12}
+            onClick={handleVerifySubmission}
+            sx={{
+              mt: 3,
+              py: 2.2,
+              borderRadius: "20px",
+              fontWeight: 900,
+              fontSize: "1rem",
+              bgcolor: THEME.primary,
+              textTransform: "none",
+              boxShadow: `0 10px 20px ${alpha(THEME.primary, 0.3)}`,
+              "&:hover": {
+                bgcolor: THEME.primary,
+                transform: "translateY(-2px)",
+              },
+              transition: "all 0.2s",
+            }}
+          >
+            {loading ? "Processing..." : "Confirm Settlement"}
+          </Button>
+        </Box>
+
+        <Typography
+          variant="caption"
+          sx={{ mt: 4, display: "block", textAlign: "center", opacity: 0.5 }}
+        >
+          End-to-End Encrypted Secure Gateway
+        </Typography>
       </Container>
-    </Root>
+    </Box>
   );
 }

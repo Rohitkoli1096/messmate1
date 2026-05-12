@@ -5,7 +5,7 @@ import { CssBaseline, ThemeProvider } from "@mui/material";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
-import AdminLayout from "./pages/AdminLayout";
+import AdminLayout from "./pages/AdminLayout"; 
 import StudentLayout from "./pages/StudentLayout";
 import { createAppTheme } from "./theme";
 import { RealtimeProvider } from "./realtime/RealtimeProvider";
@@ -88,13 +88,14 @@ function AppRoutes() {
           <Route path="home" element={<StudentDashboard />} />
           <Route path="diary" element={<AttendanceDiary />} />
           <Route path="scan" element={<QRScanner />} />
+          
+          {/* PAYMENT ROUTES */}
           <Route path="payment" element={<PaymentScreen />} />
           
-          {/* CRITICAL ROUTE: settle-balance/:id
-              This matches the navigate(`/student/settle-balance/${user.id}`) call 
-              in PaymentScreen.js.
+          {/* INDUSTRY STANDARD: Added :id parameter. 
+              This ensures SettleBalance.js can extract the ID via useParams()
           */}
-          <Route path="settle-balance/:id" element={<SettleBalance />} />
+          <Route path="payment/settle-balance/:id" element={<SettleBalance />} />
           
           <Route path="notifications" element={<NotificationsScreen />} />
           <Route 
@@ -111,7 +112,6 @@ function AppRoutes() {
 }
 
 export default function App() {
-  // Theme logic
   const [mode] = useState(() => localStorage.getItem("theme") || "light");
   const theme = useMemo(() => createAppTheme(mode), [mode]);
 
@@ -125,7 +125,6 @@ export default function App() {
         <CssBaseline />
         <RealtimeProvider>
           <BrowserRouter>
-            {/* Global Notification system */}
             <Toaster
               position="top-center"
               toastOptions={{
@@ -147,7 +146,6 @@ export default function App() {
   );
 }
 
-// --- STYLING ---
 const styles = {
     loaderContainer: {
         display: "flex",

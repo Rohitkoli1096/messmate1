@@ -12,9 +12,8 @@ import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { paymentsAPI } from "../../api";
 
-// --- DESIGN TOKENS ---
 const THEME = {
-  bg: "#F1F5F9",
+  bg: "#F8FAFC",
   surface: "#FFFFFF",
   navy: "#0F172A",
   emerald: "#10B981",
@@ -22,11 +21,10 @@ const THEME = {
   slate: "#64748B"
 };
 
-// --- STYLED COMPONENTS ---
 const Root = styled(Box)({
   minHeight: "100vh",
   backgroundColor: THEME.bg,
-  paddingBottom: "30px",
+  paddingBottom: "100px",
 });
 
 const TitanCard = styled(motion.div)({
@@ -52,6 +50,7 @@ const ActionTerminal = styled(Card)({
   border: "1px solid #E2E8F0",
   background: "rgba(255, 255, 255, 0.8)",
   backdropFilter: "blur(12px)",
+  boxShadow: "none"
 });
 
 export default function PaymentScreen() {
@@ -62,107 +61,101 @@ export default function PaymentScreen() {
   const fetchStatus = useCallback(async () => {
     try {
       const res = await paymentsAPI.getMy();
-      const data = res?.data || res;
+      const data = res?.data?.data || res?.data || res;
       setPayment(data);
     } catch (e) {
-      toast.error("Fetch failed");
-    } finally { setLoading(false); }
+      toast.error("Failed to sync ledger");
+    } finally { 
+      setLoading(false); 
+    }
   }, []);
 
   useEffect(() => { fetchStatus(); }, [fetchStatus]);
 
   if (loading) return (
-    <Root sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <CircularProgress size={24} thickness={5} sx={{ color: THEME.navy }} />
-    </Root>
+    <Box sx={{ height: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <CircularProgress size={28} thickness={5} sx={{ color: THEME.navy }} />
+    </Box>
   );
 
-  const balance = payment ? Number(payment.total_amount) - Number(payment.paid_amount) : 0;
-  const progress = payment ? (Number(payment.paid_amount) / Number(payment.total_amount)) * 100 : 0;
+  const total = Number(payment?.total_amount || 0);
+  const paid = Number(payment?.paid_amount || 0);
+  const balance = total - paid;
+  const progress = total > 0 ? (paid / total) * 100 : 0;
   
   const allocatedDate = payment?.created_at ? new Date(payment.created_at).toLocaleDateString() : "N/A";
   const expiryDate = payment?.end_date ? new Date(payment.end_date).toLocaleDateString() : "N/A";
-  const diffInMs = payment?.end_date ? new Date(payment.end_date) - new Date() : 0;
-  const remainingDays = Math.max(0, Math.ceil(diffInMs / (1000 * 60 * 60 * 24)));
-
+  
   return (
     <Root>
       <Container maxWidth="sm">
-        <Stack spacing={2} sx={{ pt: 3 }}>
-          
+        <Stack spacing={2.5} sx={{ pt: 1 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1 }}>
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 900, color: THEME.navy, lineHeight: 1.1 }}>
                 Capital Ledger
               </Typography>
-              <Typography variant="caption" sx={{ color: THEME.slate, fontWeight: 800, fontSize: '0.65rem' }}>
-                SECURE_PORTAL_v2
+              <Typography variant="caption" sx={{ color: THEME.slate, fontWeight: 800, fontSize: '0.65rem', textTransform: 'uppercase' }}>
+                Secure Payment Portal
               </Typography>
             </Box>
-            <IconButton size="small" sx={{ bgcolor: THEME.surface, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+            <IconButton size="small" sx={{ bgcolor: THEME.surface, border: "1px solid #E2E8F0" }}>
               <HistoryRounded fontSize="small" sx={{ color: THEME.navy }} />
             </IconButton>
           </Box>
 
-          <TitanCard initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <TitanCard initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             <Stack spacing={2}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Box sx={{ bgcolor: alpha(THEME.emerald, 0.15), px: 1.2, py: 0.3, borderRadius: '100px' }}>
+                <Box sx={{ bgcolor: alpha(THEME.emerald, 0.2), px: 1.5, py: 0.4, borderRadius: '100px' }}>
                   <Typography sx={{ color: THEME.emerald, fontSize: '9px', fontWeight: 900 }}>SYSTEM_ACTIVE</Typography>
                 </Box>
                 <VerifiedUserRounded sx={{ opacity: 0.8, fontSize: 20 }} />
               </Box>
-
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 900, fontSize: '1.1rem' }}>
-                   {payment?.plan_type === 'full' ? 'Elite Executive' : 'Standard Tier'}
+                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.2rem' }}>
+                   {payment?.plan_type?.toUpperCase() || 'STANDARD'} TIER
                 </Typography>
-                <Typography sx={{ opacity: 0.6, fontWeight: 700, fontSize: '0.65rem' }}>
-                  ID: #{payment?.subscription_id}
+                <Typography sx={{ opacity: 0.6, fontWeight: 700, fontSize: '0.7rem' }}>
+                  REF: #{payment?.subscription_id || '0000'}
                 </Typography>
               </Box>
-
               <Divider sx={{ borderColor: alpha('#FFF', 0.1) }} />
-
               <Grid container spacing={1}>
                 <Grid item xs={4}>
-                  <Typography sx={{ opacity: 0.5, fontSize: '0.6rem', fontWeight: 800 }}>ALLOCATED</Typography>
+                  <Typography sx={{ opacity: 0.5, fontSize: '0.6rem', fontWeight: 800 }}>START</Typography>
                   <Typography sx={{ fontSize: '11px', fontWeight: 700 }}>{allocatedDate}</Typography>
                 </Grid>
                 <Grid item xs={4}>
-                  <Typography sx={{ opacity: 0.5, fontSize: '0.6rem', fontWeight: 800 }}>EXPIRY</Typography>
+                  <Typography sx={{ opacity: 0.5, fontSize: '0.6rem', fontWeight: 800 }}>END</Typography>
                   <Typography sx={{ fontSize: '11px', fontWeight: 700 }}>{expiryDate}</Typography>
-                </Grid>
-                <Grid item xs={4} sx={{ textAlign: 'right' }}>
-                  <Typography sx={{ color: THEME.emerald, fontSize: '0.6rem', fontWeight: 900 }}>REMAINING</Typography>
-                  <Typography sx={{ fontSize: '13px', fontWeight: 900 }}>{remainingDays}D</Typography>
                 </Grid>
               </Grid>
             </Stack>
           </TitanCard>
 
-          <Stack direction="row" spacing={1.5}>
+          <Stack direction="row" spacing={2}>
             <StatBox>
-              <Typography sx={{ color: THEME.slate, fontWeight: 900, fontSize: '0.65rem' }}>BILLED</Typography>
-              <Typography variant="subtitle1" sx={{ fontWeight: 900, color: THEME.navy }}>₹{payment?.total_amount}</Typography>
+              <Typography sx={{ color: THEME.slate, fontWeight: 900, fontSize: '0.65rem' }}>TOTAL BILLED</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 900, color: THEME.navy }}>₹{total}</Typography>
             </StatBox>
-            <StatBox sx={{ borderBottom: `3px solid ${THEME.emerald}` }}>
+            <StatBox sx={{ borderBottom: `4px solid ${THEME.emerald}` }}>
               <Typography sx={{ color: THEME.emerald, fontWeight: 900, fontSize: '0.65rem' }}>SETTLED</Typography>
-              <Typography variant="subtitle1" sx={{ fontWeight: 900, color: THEME.emerald }}>₹{payment?.paid_amount}</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 900, color: THEME.emerald }}>₹{paid}</Typography>
             </StatBox>
           </Stack>
 
           <ActionTerminal>
-            <CardContent sx={{ p: 2 }}>
-              <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+            <CardContent sx={{ p: 2.5 }}>
+              <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
                 <Box sx={{ position: 'relative', display: 'flex' }}>
-                  <CircularProgress variant="determinate" value={100} size={36} thickness={5} sx={{ color: '#E2E8F0' }} />
-                  <CircularProgress variant="determinate" value={progress} size={36} thickness={5} sx={{ color: THEME.indigo, position: 'absolute', strokeLinecap: 'round' }} />
+                  <CircularProgress variant="determinate" value={100} size={42} thickness={5} sx={{ color: '#F1F5F9' }} />
+                  <CircularProgress variant="determinate" value={progress} size={42} thickness={5} sx={{ color: THEME.indigo, position: 'absolute', strokeLinecap: 'round' }} />
                 </Box>
                 <Box>
-                  <Typography sx={{ fontWeight: 900, color: THEME.navy, fontSize: '12px' }}>Ledger Status</Typography>
-                  <Typography sx={{ color: THEME.slate, fontWeight: 700, fontSize: '0.65rem' }}>
-                    {balance === 0 ? "Settled" : `Pending: ₹${balance}`}
+                  <Typography sx={{ fontWeight: 900, color: THEME.navy, fontSize: '14px' }}>Outstanding Balance</Typography>
+                  <Typography sx={{ color: balance === 0 ? THEME.emerald : '#F43F5E', fontWeight: 800, fontSize: '0.75rem' }}>
+                    {balance === 0 ? "FULL SETTLEMENT REACHED" : `DUE: ₹${balance}`}
                   </Typography>
                 </Box>
               </Stack>
@@ -172,13 +165,26 @@ export default function PaymentScreen() {
                   fullWidth
                   variant="contained"
                   disableElevation
-                  // FIXED: Changed to relative path to match App.js hierarchy
-                  onClick={() => navigate("settle-balance")} 
+                  // FIXED: Now passing user_id, amount, AND subscription_id in state
+                  onClick={() => {
+                    const studentId = payment?.user_id;
+                    if (studentId) {
+                        navigate(`/student/payment/settle-balance/${studentId}`, {
+                          state: {
+                            amount: balance,
+                            subscriptionId: payment?.subscription_id,
+                            title: `${payment?.plan_type?.toUpperCase()} Plan Settlement`
+                          }
+                        });
+                    } else {
+                        toast.error("Could not verify session ID");
+                    }
+                  }} 
                   endIcon={<NorthEastRounded fontSize="small" />}
                   sx={{ 
-                    py: 1.2, borderRadius: "12px", bgcolor: THEME.navy, fontWeight: 900, fontSize: '0.85rem',
-                    textTransform: 'none',
-                    '&:active': { transform: 'scale(0.98)' } 
+                    py: 1.5, borderRadius: "16px", bgcolor: THEME.navy, fontWeight: 900, fontSize: '0.9rem',
+                    textTransform: 'none', boxShadow: "0 8px 16px -4px rgba(15, 23, 42, 0.2)",
+                    '&:hover': { bgcolor: '#1E293B' }
                   }}
                 >
                   Settle Balance
@@ -186,20 +192,8 @@ export default function PaymentScreen() {
               )}
             </CardContent>
           </ActionTerminal>
-
-          <Stack direction="row" justifyContent="center" spacing={2} sx={{ opacity: 0.4, pt: 0.5 }}>
-            <FooterBadge icon={<ShieldRounded />} label="SECURE" />
-            <FooterBadge icon={<TrendingUpRounded />} label="SYNCED" />
-          </Stack>
         </Stack>
       </Container>
     </Root>
   );
 }
-
-const FooterBadge = ({ icon, label }) => (
-  <Stack direction="row" spacing={0.5} alignItems="center">
-    {React.cloneElement(icon, { sx: { fontSize: 10 } })}
-    <Typography sx={{ fontSize: '8px', fontWeight: 950, letterSpacing: 0.5 }}>{label}</Typography>
-  </Stack>
-);

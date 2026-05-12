@@ -7,7 +7,6 @@ import {
   IconButton,
   Toolbar,
   Typography,
-  Avatar,
 } from "@mui/material";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -40,25 +39,53 @@ export default function StudentLayout() {
         position: "relative",
       }}
     >
-      {/* 1. HEADER */}
+      {/* 1. HEADER WITH BRAND LOGO */}
       <AppBar 
         position="sticky" 
         sx={{ 
           background: "rgba(255, 255, 255, 0.8)", 
           backdropFilter: "blur(15px)",
-          borderBottom: "1px solid #F1F5F9" 
+          borderBottom: "1px solid #F1F5F9",
+          zIndex: 1100 
         }} 
         elevation={0}
       >
         <Toolbar sx={{ justifyContent: "space-between", px: 2.5 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Avatar 
-              sx={{ width: 32, height: 32, bgcolor: "#EEF2FF", color: "#4F46E5", fontWeight: 800, fontSize: '0.75rem' }}
-            >
-              M
-            </Avatar>
-            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#0F172A", letterSpacing: "-0.5px" }}>
-              MessMate
+          <Box 
+            sx={{ display: "flex", alignItems: "center", gap: 1.5, cursor: 'pointer' }}
+            onClick={() => navigate("/student/home")}
+          >
+            {/* --- SVG MEAL LOGO START --- */}
+            <Box sx={{ position: "relative", display: "flex" }}>
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* Plate Circle */}
+                <circle cx="12" cy="12" r="10" fill="url(#studentMealGradient)" />
+                {/* Stylized Fork */}
+                <path d="M9 7V11M7.5 7V10C7.5 10.5523 7.94772 11 8.5 11H9.5C10.0523 11 10.5 10.5523 10.5 10V7" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
+                <path d="M9 11V17" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
+                {/* Stylized Knife */}
+                <path d="M14 7V17M14 7C14 7 16.5 7.5 16.5 10V11C16.5 11 14 11 14 11" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
+                
+                <defs>
+                  <linearGradient id="studentMealGradient" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#4F46E5" />
+                    <stop offset="1" stopColor="#7C3AED" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              {/* Subtle Decorative Sparkle */}
+              <motion.div 
+                animate={{ opacity: [0, 1, 0] }} 
+                transition={{ repeat: Infinity, duration: 2.5 }}
+                style={{ position: "absolute", top: -4, right: -4 }}
+              >
+                <Typography sx={{ fontSize: 10 }}>✨</Typography>
+              </motion.div>
+            </Box>
+            {/* --- SVG MEAL LOGO END --- */}
+
+            <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#0F172A", letterSpacing: "-0.5px" }}>
+              Mess<span style={{ color: "#4F46E5" }}>Mate</span>
             </Typography>
           </Box>
 
@@ -85,7 +112,7 @@ export default function StudentLayout() {
         </AnimatePresence>
       </Box>
 
-      {/* 3. UPDATED PROFESSIONAL BOTTOM NAV */}
+      {/* 3. BOTTOM NAV */}
       <Box
         sx={{
           position: "fixed",
@@ -98,7 +125,6 @@ export default function StudentLayout() {
           bgcolor: "rgba(255, 255, 255, 0.95)",
           backdropFilter: "blur(20px)",
           borderTop: "1px solid #F1F5F9",
-          // Support for modern mobile gestures
           pb: "calc(8px + env(safe-area-inset-bottom))", 
         }}
       >
@@ -116,7 +142,6 @@ export default function StudentLayout() {
             onClick={() => navigate("/student/diary")} 
           />
           
-          {/* CENTRAL ACTION */}
           <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
             <motion.button
               whileTap={{ scale: 0.92 }}
@@ -126,7 +151,7 @@ export default function StudentLayout() {
                 color: "white",
                 border: "none",
                 borderRadius: "15px",
-                width: "98px",
+                width: "75px",
                 height: "50px",
                 display: "flex",
                 alignItems: "center",
@@ -173,7 +198,6 @@ function NavItem({ active, icon, label, onClick }) {
         gap: 0.5
       }}
     >
-      {/* Precision Active Indicator */}
       {active && (
         <motion.div
           layoutId="nav-line"
