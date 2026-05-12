@@ -229,6 +229,8 @@ export default function PaymentManagement() {
                       color: "#64748b",
                       textTransform: "uppercase",
                     }}
+
+                    
                   >
                     Plan
                   </th>

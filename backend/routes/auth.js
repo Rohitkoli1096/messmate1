@@ -3,7 +3,6 @@ const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const db = require("../config/db");
-
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
   try {
@@ -64,3 +63,6 @@ router.post("/change-password", async (req, res) => {
 });
 
 module.exports = router;
+
+
+
