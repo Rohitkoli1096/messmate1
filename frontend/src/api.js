@@ -25,8 +25,6 @@ API.interceptors.request.use((config) => {
 // --- GLOBAL RESPONSE & ERROR INTERCEPTOR ---
 API.interceptors.response.use(
   (response) => {
-    // If backend sends { success: true, data: [...] }, this extracts it.
-    // Otherwise, it returns the standard response body.
     return response.data;
   },
   async (err) => {
@@ -73,7 +71,19 @@ export const attendanceAPI = {
   markAttendance: (code_value) => API.post("/qr/mark-attendance", { code_value }),
   getMy: (month, year) => API.get(`/qr/my?month=${month}&year=${year}`),
   getAllLogs: () => API.get("/qr/attendance-logs"),
-  getDaily: (date) => API.get(`/attendance/daily?date=${date}`),
+  
+  /**
+   * TITAN OS CORE UPDATE:
+   * Supports single date (?date=) and range queries (?start= & end=)
+   * This is required for the Monthly PDF Export feature.
+   */
+  getDaily: (date, endDate = null) => {
+    if (endDate) {
+      return API.get(`/attendance/daily?start=${date}&end=${endDate}`);
+    }
+    return API.get(`/attendance/daily?date=${date}`);
+  },
+  
   getStats: () => API.get("/attendance/stats"),
   getWeekly: () => API.get("/attendance/weekly"),
 };
@@ -88,21 +98,12 @@ export const subscriptionsAPI = {
 
 export const paymentsAPI = {
   getAll: () => API.get("/payments"),
-  
-  // NEW/UPDATED: Fetches the individual ledger for PaymentScreen
   getMy: () => API.get("/payments/my"), 
-  
-  // NEW: Fetches the specific balance and UPI ID for SettleBalance page
   getDetails: (studentId) => API.get(`/payments/payment-details/${studentId}`),
-  
-  // NEW: Submits the UTR number and amount to the database
   submitSettlement: (data) => API.post("/payments/submit-settlement", data),
-
   update: (id, data) => API.put(`/payments/${id}`, data),
-  
   createOrder: (sub_id) => API.post("/payments/orders", { subscription_id: sub_id }),
   verifyCheckout: (payload) => API.post("/payments/verify-checkout", payload),
-  
   uploadScreenshot: (formData) =>
     API.post("/payments/upload-screenshot", formData, {
       headers: { "Content-Type": "multipart/form-data" },

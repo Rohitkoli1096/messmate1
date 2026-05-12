@@ -2,11 +2,9 @@ import React, { useEffect, useState } from "react";
 import { paymentsAPI } from "../../api";
 import toast from "react-hot-toast";
 
-// Define the backend URL where images are hosted
 const API_BASE_URL = "http://localhost:5001";
 
 export default function PaymentManagement() {
-  // Initialize as an empty array to prevent .reduce errors on initial render
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editId, setEditId] = useState(null);
@@ -17,8 +15,7 @@ export default function PaymentManagement() {
     paymentsAPI
       .getAll()
       .then((r) => {
-        // FIX: Remove .data as api.js interceptor already unwrapped it
-        const data = Array.isArray(r) ? r : (r?.data || []);
+        const data = Array.isArray(r) ? r : r?.data || [];
         setPayments(data);
       })
       .catch((err) => {
@@ -44,9 +41,8 @@ export default function PaymentManagement() {
     }
   };
 
-  // FIX: Added safety check to ensure payments is an array before reducing
   const safePayments = Array.isArray(payments) ? payments : [];
-  
+
   const totalCollected = safePayments.reduce(
     (s, p) => s + Number(p.paid_amount || 0),
     0,
@@ -57,116 +53,153 @@ export default function PaymentManagement() {
   );
 
   return (
-    <div style={{ padding: "10px" }}>
-      {/* Statistics Cards */}
+    <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "10px" }}>
+      {/* PROFESSIONAL STATS HEADER (Left Border Sheds) */}
       <div
-        className="stat-grid"
         style={{
-          gridTemplateColumns: "repeat(3,1fr)",
-          gap: "16px",
-          marginBottom: 20,
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: "24px",
+          marginBottom: "30px",
         }}
       >
+        {/* Total Collected Card */}
         <div
           className="stat-card"
           style={{
             background: "#fff",
-            padding: "20px",
+            padding: "24px",
             borderRadius: "12px",
-            border: "1px solid #eef2ff",
+            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+            borderLeft: "6px solid #22C55E", // Green Shed
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px",
           }}
         >
-          <div className="stat-icon" style={{ marginBottom: 8 }}>
-            ✅
+          <div
+            style={{
+              color: "#64748b",
+              fontSize: "12px",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: "1px",
+            }}
+          >
+            Total Collected
           </div>
           <div
-            className="stat-val"
-            style={{ color: "#22C55E", fontSize: "20px", fontWeight: 800 }}
+            style={{ fontSize: "32px", fontWeight: "800", color: "#166534" }}
           >
             ₹{totalCollected.toLocaleString("en-IN")}
           </div>
           <div
-            className="stat-lbl"
-            style={{ color: "#64748b", fontSize: "12px", fontWeight: 600 }}
+            style={{ fontSize: "12px", color: "#22C55E", fontWeight: "600" }}
           >
-            Total Collected
+            Verified Revenue
           </div>
         </div>
+
+        {/* Pending Amount Card */}
         <div
           className="stat-card"
           style={{
             background: "#fff",
-            padding: "20px",
+            padding: "24px",
             borderRadius: "12px",
-            border: "1px solid #fff1f2",
+            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+            borderLeft: "6px solid #F59E0B", // Orange Shed
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px",
           }}
         >
-          <div className="stat-icon" style={{ marginBottom: 8 }}>
-            ⏳
+          <div
+            style={{
+              color: "#64748b",
+              fontSize: "12px",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: "1px",
+            }}
+          >
+            Pending Amount
           </div>
           <div
-            className="stat-val"
-            style={{ color: "#F59E0B", fontSize: "20px", fontWeight: 800 }}
+            style={{ fontSize: "32px", fontWeight: "800", color: "#92400e" }}
           >
             ₹{totalPending.toLocaleString("en-IN")}
           </div>
           <div
-            className="stat-lbl"
-            style={{ color: "#64748b", fontSize: "12px", fontWeight: 600 }}
+            style={{ fontSize: "12px", color: "#F59E0B", fontWeight: "600" }}
           >
-            Pending Amount
+            Outstanding Balance
           </div>
         </div>
+
+        {/* Total Records Card */}
         <div
           className="stat-card"
           style={{
             background: "#fff",
-            padding: "20px",
+            padding: "24px",
             borderRadius: "12px",
-            border: "1px solid #f5f3ff",
+            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+            borderLeft: "6px solid #4F46E5", // Purple/Indigo Shed
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px",
           }}
         >
-          <div className="stat-icon" style={{ marginBottom: 8 }}>
-            👥
+          <div
+            style={{
+              color: "#64748b",
+              fontSize: "12px",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: "1px",
+            }}
+          >
+            Total Records
           </div>
           <div
-            className="stat-val"
-            style={{ color: "#4F46E5", fontSize: "20px", fontWeight: 800 }}
+            style={{ fontSize: "32px", fontWeight: "800", color: "#1e1b4b" }}
           >
             {safePayments.length}
           </div>
           <div
-            className="stat-lbl"
-            style={{ color: "#64748b", fontSize: "12px", fontWeight: 600 }}
+            style={{ fontSize: "12px", color: "#4F46E5", fontWeight: "600" }}
           >
-            Total Records
+            Payment Entries
           </div>
         </div>
       </div>
 
+      {/* DATA TABLE SECTION */}
       <div
         className="card"
         style={{
           background: "#fff",
           padding: "24px",
           borderRadius: "16px",
-          boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+          boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
+          border: "1px solid #e2e8f0",
         }}
       >
         <h3
           style={{
             marginBottom: 20,
-            fontSize: 16,
-            fontWeight: 700,
+            fontSize: 18,
+            fontWeight: 800,
             color: "#1e1b4b",
           }}
         >
-          💰 All Payment Records
+          💰 Financial Ledger
         </h3>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: 40, color: "#64748b" }}>
-            <p>Fetching payments...</p>
+          <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>
+            <p>Syncing Financial Data...</p>
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -176,31 +209,87 @@ export default function PaymentManagement() {
                   style={{
                     textAlign: "left",
                     background: "#f8fafc",
-                    borderBottom: "2px solid #f1f5f9",
+                    borderBottom: "1px solid #e2e8f0",
                   }}
                 >
-                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
+                  <th
+                    style={{
+                      padding: "16px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
                     Student
                   </th>
-                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
-                    Plan Details
+                  <th
+                    style={{
+                      padding: "16px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Plan
                   </th>
-                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
+                  <th
+                    style={{
+                      padding: "16px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
                     Total
                   </th>
-                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
+                  <th
+                    style={{
+                      padding: "16px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
                     Paid
                   </th>
-                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
-                    Remaining
+                  <th
+                    style={{
+                      padding: "16px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Due
                   </th>
-                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
+                  <th
+                    style={{
+                      padding: "16px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
                     Status
                   </th>
-                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
-                    Screenshot
+                  <th
+                    style={{
+                      padding: "16px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Receipt
                   </th>
-                  <th style={{ padding: "12px 16px", fontSize: "13px" }}>
+                  <th
+                    style={{
+                      padding: "16px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
                     Action
                   </th>
                 </tr>
@@ -216,63 +305,76 @@ export default function PaymentManagement() {
                   return (
                     <tr
                       key={p.id}
-                      style={{ borderBottom: "1px solid #f1f5f9" }}
+                      style={{
+                        borderBottom: "1px solid #f1f5f9",
+                        transition: "all 0.2s",
+                      }}
+                      className="table-row-hover"
                     >
                       <td
                         style={{
                           padding: "16px",
-                          fontWeight: 600,
-                          color: "#334155",
+                          fontWeight: 700,
+                          color: "#1e293b",
                         }}
                       >
                         {p.name}
                       </td>
-                      <td
-                        style={{
-                          padding: "16px",
-                          fontSize: "12px",
-                          color: "#64748b",
-                        }}
-                      >
+                      <td style={{ padding: "16px" }}>
                         <span
                           style={{
-                            display: "block",
-                            fontWeight: 700,
+                            background: "#EEF2FF",
                             color: "#4F46E5",
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            fontSize: "11px",
+                            fontWeight: "800",
                           }}
                         >
                           {p.plan_type?.toUpperCase()}
                         </span>
-                        {p.duration}
                       </td>
-                      <td style={{ padding: "16px" }}>
-                        ₹{Number(p.total_amount || 0).toLocaleString("en-IN")}
-                      </td>
-                      <td
-                        style={{
-                          padding: "16px",
-                          color: "#22C55E",
-                          fontWeight: 700,
-                        }}
-                      >
-                        ₹{Number(p.paid_amount || 0).toLocaleString("en-IN")}
+                      <td style={{ padding: "16px", color: "#64748b" }}>
+                        ₹{Number(p.total_amount).toLocaleString()}
                       </td>
                       <td
                         style={{
                           padding: "16px",
-                          color: remaining > 0 ? "#EF4444" : "#22C55E",
-                          fontWeight: 700,
+                          color: "#16a34a",
+                          fontWeight: 800,
                         }}
                       >
-                        ₹{remaining.toLocaleString("en-IN")}
+                        ₹{Number(p.paid_amount).toLocaleString()}
+                      </td>
+                      <td
+                        style={{
+                          padding: "16px",
+                          color: remaining > 0 ? "#dc2626" : "#16a34a",
+                          fontWeight: 800,
+                        }}
+                      >
+                        ₹{remaining.toLocaleString()}
                       </td>
                       <td style={{ padding: "16px" }}>
                         <span
-                          className={`badge ${p.status === "paid" ? "badge-green" : p.status === "partial" ? "badge-yellow" : "badge-red"}`}
                           style={{
-                            textTransform: "uppercase",
+                            padding: "6px 12px",
+                            borderRadius: "99px",
                             fontSize: "10px",
-                            padding: "4px 8px",
+                            fontWeight: "800",
+                            textTransform: "uppercase",
+                            background:
+                              p.status === "paid"
+                                ? "#dcfce7"
+                                : p.status === "partial"
+                                  ? "#fef3c7"
+                                  : "#fee2e2",
+                            color:
+                              p.status === "paid"
+                                ? "#16a34a"
+                                : p.status === "partial"
+                                  ? "#d97706"
+                                  : "#dc2626",
                           }}
                         >
                           {p.status}
@@ -283,9 +385,8 @@ export default function PaymentManagement() {
                           <div
                             style={{
                               display: "flex",
-                              flexDirection: "column",
                               alignItems: "center",
-                              gap: "4px",
+                              gap: "8px",
                             }}
                           >
                             <img
@@ -298,10 +399,6 @@ export default function PaymentManagement() {
                                 objectFit: "cover",
                                 border: "1px solid #e2e8f0",
                               }}
-                              onError={(e) => {
-                                e.target.src =
-                                  "https://via.placeholder.com/35?text=ERR";
-                              }}
                             />
                             <a
                               href={imageUrl}
@@ -310,16 +407,16 @@ export default function PaymentManagement() {
                               style={{
                                 color: "#4F46E5",
                                 fontSize: 10,
-                                fontWeight: 700,
+                                fontWeight: 800,
                                 textDecoration: "none",
                               }}
                             >
-                              VIEW FULL
+                              VIEW
                             </a>
                           </div>
                         ) : (
                           <span style={{ color: "#cbd5e1", fontSize: 11 }}>
-                            No Receipt
+                            N/A
                           </span>
                         )}
                       </td>
@@ -332,9 +429,10 @@ export default function PaymentManagement() {
                               onChange={(e) => setEditAmt(e.target.value)}
                               style={{
                                 width: 80,
-                                padding: "6px",
-                                borderRadius: "4px",
+                                padding: "8px",
+                                borderRadius: "8px",
                                 border: "1px solid #4F46E5",
+                                outline: "none",
                               }}
                               type="number"
                             />
@@ -343,40 +441,42 @@ export default function PaymentManagement() {
                               style={{
                                 background: "#4F46E5",
                                 color: "#fff",
-                                padding: "6px 10px",
-                                borderRadius: "4px",
+                                padding: "8px 12px",
+                                borderRadius: "8px",
                                 border: "none",
+                                cursor: "pointer",
                               }}
                               onClick={() => handleUpdate(p.id)}
                             >
                               Save
                             </button>
                             <button
-                              className="btn-danger"
-                              style={{
-                                padding: "6px 10px",
-                                borderRadius: "4px",
-                              }}
                               onClick={() => setEditId(null)}
+                              style={{
+                                background: "#f1f5f9",
+                                padding: "8px",
+                                borderRadius: "8px",
+                                border: "none",
+                              }}
                             >
                               ✕
                             </button>
                           </div>
                         ) : (
                           <button
-                            className="btn-edit"
-                            style={{
-                              padding: "6px 12px",
-                              fontSize: "12px",
-                              fontWeight: 600,
-                              background: "#f5f3ff",
-                              color: "#4F46E5",
-                              border: "1px solid #ddd6fe",
-                              borderRadius: "6px",
-                            }}
                             onClick={() => {
                               setEditId(p.id);
                               setEditAmt(p.paid_amount);
+                            }}
+                            style={{
+                              padding: "8px 16px",
+                              fontSize: "12px",
+                              fontWeight: 700,
+                              background: "transparent",
+                              color: "#475569",
+                              border: "1px solid #e2e8f0",
+                              borderRadius: "8px",
+                              cursor: "pointer",
                             }}
                           >
                             Update

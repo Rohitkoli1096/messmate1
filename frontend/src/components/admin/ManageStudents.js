@@ -5,7 +5,6 @@ import toast from "react-hot-toast";
 const EMPTY = { name: "", username: "", password: "", phone: "", room: "" };
 
 export default function ManageStudents() {
-  // Initialize as empty array to prevent .filter errors
   const [students, setStudents] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [editing, setEditing] = useState(null);
@@ -17,14 +16,13 @@ export default function ManageStudents() {
     studentsAPI
       .getAll()
       .then((r) => {
-        // SMART FIX: Check if r is the data or contains .data
-        const data = Array.isArray(r) ? r : (r?.data || []);
+        const data = Array.isArray(r) ? r : r?.data || [];
         setStudents(data);
       })
       .catch((err) => {
         console.error("Load error:", err);
         toast.error("Failed to load students");
-        setStudents([]); // Set to empty array on error to prevent crash
+        setStudents([]);
       })
       .finally(() => setLoading(false));
   };
@@ -68,18 +66,12 @@ export default function ManageStudents() {
     try {
       await studentsAPI.delete(id);
       toast.success("Student deleted successfully", { id: tid });
-      load(); 
+      load();
     } catch (err) {
-      console.error("Delete error:", err);
-      toast.error(
-        err.response?.data?.message ||
-          "Delete failed: Database constraint issue",
-        { id: tid },
-      );
+      toast.error(err.response?.data?.message || "Delete failed", { id: tid });
     }
   };
 
-  // SMART FIX: Use optional chaining and fallback array to prevent .filter crash
   const filtered = (students || []).filter(
     (s) =>
       s?.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -87,64 +79,135 @@ export default function ManageStudents() {
   );
 
   return (
-    <div style={{ padding: "20px" }}>
+    <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "10px" }}>
+      {/* 1. TOP STATS WITH LEFT BORDER SHEDS */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: "24px",
+          marginBottom: "30px",
+        }}
+      >
+        <div
+          style={{
+            borderLeft: "6px solid #4F46E5",
+            padding: "24px",
+            background: "#fff",
+            borderRadius: "12px",
+            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+          }}
+        >
+          <div
+            style={{
+              color: "#64748b",
+              fontSize: "11px",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: "1px",
+            }}
+          >
+            Total Registry
+          </div>
+          <div
+            style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}
+          >
+            {students.length}
+          </div>
+          <div
+            style={{ fontSize: "12px", color: "#4F46E5", fontWeight: "600" }}
+          >
+            Total Students Onboarded
+          </div>
+        </div>
+        <div
+          style={{
+            borderLeft: "6px solid #10B981",
+            padding: "24px",
+            background: "#fff",
+            borderRadius: "12px",
+            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+          }}
+        >
+          <div
+            style={{
+              color: "#64748b",
+              fontSize: "11px",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: "1px",
+            }}
+          >
+            Active Members
+          </div>
+          <div
+            style={{ fontSize: "32px", fontWeight: "800", color: "#065f46" }}
+          >
+            {students.filter((s) => s.payment_status === "paid").length}
+          </div>
+          <div
+            style={{ fontSize: "12px", color: "#10B981", fontWeight: "600" }}
+          >
+            Fully Paid Status
+          </div>
+        </div>
+        <div
+          style={{
+            borderLeft: "6px solid #EF4444",
+            padding: "24px",
+            background: "#fff",
+            borderRadius: "12px",
+            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+          }}
+        >
+          <div
+            style={{
+              color: "#64748b",
+              fontSize: "11px",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: "1px",
+            }}
+          >
+            Room Occupancy
+          </div>
+          <div
+            style={{ fontSize: "32px", fontWeight: "800", color: "#991b1b" }}
+          >
+            {new Set(students.map((s) => s.room).filter(Boolean)).size}
+          </div>
+          <div
+            style={{ fontSize: "12px", color: "#EF4444", fontWeight: "600" }}
+          >
+            Unique Rooms Assigned
+          </div>
+        </div>
+      </div>
+
+      {/* 2. REGISTRATION FORM CARD */}
       <div
         className="card"
         style={{
-          marginBottom: 16,
-          padding: "20px",
+          marginBottom: 24,
+          padding: "24px",
           background: "#fff",
-          borderRadius: "12px",
-          boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+          borderRadius: "16px",
+          border: "1px solid #e2e8f0",
+          boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
         }}
       >
         <h3
           style={{
-            marginBottom: 14,
-            fontSize: 16,
-            fontWeight: 700,
+            marginBottom: 20,
+            fontSize: 18,
+            fontWeight: 800,
             color: "#1e1b4b",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
           }}
         >
-          {editing ? (
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M3 17.25V21H6.75L17.81 9.94L14.06 6.19L3 17.25Z"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                />
-                <path
-                  d="M14.06 6.19L17.81 9.94"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                />
-              </svg>
-              Edit Student
-            </span>
-          ) : (
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <line
-                  x1="12"
-                  y1="5"
-                  x2="12"
-                  y2="19"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                />
-                <line
-                  x1="5"
-                  y1="12"
-                  x2="19"
-                  y2="12"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                />
-              </svg>
-              Add New Student
-            </span>
-          )}
+          {editing ? "✏️ Update Member Profile" : "👤 Register New Student"}
         </h3>
         <form onSubmit={handleSubmit}>
           <div
@@ -163,43 +226,44 @@ export default function ManageStudents() {
               },
               {
                 key: "username",
-                label: "Username",
+                label: "Username/ID",
                 placeholder: "e.g. rohit.k",
               },
               {
                 key: "password",
                 label: "Password",
-                placeholder: editing
-                  ? "(leave blank to keep current)"
-                  : "Set password",
+                placeholder: editing ? "(Hidden)" : "Set password",
                 type: "password",
               },
               {
                 key: "phone",
-                label: "Phone Number",
+                label: "Contact No",
                 placeholder: "e.g. 7020572471",
               },
-              { key: "room", label: "Room Number", placeholder: "e.g. A-204" },
+              { key: "room", label: "Room No", placeholder: "e.g. A-204" },
             ].map((f) => (
               <div
                 key={f.key}
-                className="form-group"
-                style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+                style={{ display: "flex", flexDirection: "column", gap: "6px" }}
               >
                 <label
                   style={{
                     fontSize: "12px",
-                    fontWeight: 600,
-                    color: "#4b5563",
+                    fontWeight: 700,
+                    color: "#64748b",
+                    textTransform: "uppercase",
                   }}
                 >
                   {f.label}
                 </label>
                 <input
                   style={{
-                    padding: "8px 12px",
-                    borderRadius: "8px",
-                    border: "1px solid #d1d5db",
+                    padding: "10px 14px",
+                    borderRadius: "10px",
+                    border: "1px solid #e2e8f0",
+                    outline: "none",
+                    fontSize: "14px",
+                    transition: "0.2s",
                   }}
                   type={f.type || "text"}
                   placeholder={f.placeholder}
@@ -211,28 +275,33 @@ export default function ManageStudents() {
                 />
               </div>
             ))}
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
               <button
                 type="submit"
                 className="btn-primary"
                 style={{
                   flex: 1,
-                  padding: "10px",
-                  borderRadius: "8px",
+                  padding: "12px",
+                  borderRadius: "10px",
+                  fontWeight: "700",
+                  background: "#4F46E5",
+                  border: "none",
+                  color: "#fff",
                   cursor: "pointer",
-                  fontWeight: 600,
                 }}
               >
-                {editing ? "Update Student" : "Register Student"}
+                {editing ? "Save Changes" : "Create Account"}
               </button>
               {editing && (
                 <button
                   type="button"
                   style={{
-                    padding: "10px 14px",
-                    borderRadius: "8px",
-                    background: "#f3f4f6",
+                    padding: "12px 18px",
+                    borderRadius: "10px",
+                    background: "#f1f5f9",
                     border: "none",
+                    fontWeight: "700",
+                    color: "#64748b",
                     cursor: "pointer",
                   }}
                   onClick={() => {
@@ -248,13 +317,14 @@ export default function ManageStudents() {
         </form>
       </div>
 
+      {/* 3. LISTING CARD */}
       <div
         className="card"
         style={{
-          padding: "20px",
+          padding: "24px",
           background: "#fff",
-          borderRadius: "12px",
-          boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+          borderRadius: "16px",
+          border: "1px solid #e2e8f0",
         }}
       >
         <div
@@ -262,99 +332,238 @@ export default function ManageStudents() {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            marginBottom: 20,
+            marginBottom: 24,
+            flexWrap: "wrap",
+            gap: 16,
           }}
         >
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#1e1b4b" }}>
-            👥 All Students ({filtered.length})
-          </h3>
-          <input
+          <h3
             style={{
-              width: 250,
-              padding: "8px 12px",
-              borderRadius: "8px",
-              border: "1px solid #d1d5db",
+              fontSize: 18,
+              fontWeight: 800,
+              color: "#1e1b4b",
+              margin: 0,
             }}
-            placeholder="Search name or username..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          >
+            📋 Student Directory{" "}
+            <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 14 }}>
+              ({filtered.length} found)
+            </span>
+          </h3>
+          <div style={{ position: "relative", width: "300px" }}>
+            <input
+              style={{
+                width: "100%",
+                padding: "10px 14px 10px 35px",
+                borderRadius: "10px",
+                border: "1px solid #e2e8f0",
+                outline: "none",
+              }}
+              placeholder="Filter by name or ID..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <span
+              style={{
+                position: "absolute",
+                left: 12,
+                top: 10,
+                color: "#94a3b8",
+              }}
+            >
+              🔍
+            </span>
+          </div>
         </div>
 
         {loading ? (
-          <p style={{ color: "#6b7280", textAlign: "center", padding: 40 }}>
-            🔍 Loading student records...
-          </p>
+          <div style={{ padding: 60, textAlign: "center", color: "#94a3b8" }}>
+            Loading student records...
+          </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                textAlign: "left",
+              }}
+            >
               <thead>
                 <tr
                   style={{
-                    textAlign: "left",
-                    borderBottom: "2px solid #f3f4f6",
+                    background: "#f8fafc",
+                    borderBottom: "1px solid #e2e8f0",
                   }}
                 >
-                  <th style={{ padding: "12px" }}>Name</th>
-                  <th style={{ padding: "12px" }}>Username</th>
-                  <th style={{ padding: "12px" }}>Room</th>
-                  <th style={{ padding: "12px" }}>Plan Details</th>
-                  <th style={{ padding: "12px" }}>Expiry</th>
-                  <th style={{ padding: "12px" }}>Payment</th>
-                  <th style={{ padding: "12px" }}>Actions</th>
+                  <th
+                    style={{
+                      padding: "14px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Member
+                  </th>
+                  <th
+                    style={{
+                      padding: "14px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Location
+                  </th>
+                  <th
+                    style={{
+                      padding: "14px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Active Plan
+                  </th>
+                  <th
+                    style={{
+                      padding: "14px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Expiration
+                  </th>
+                  <th
+                    style={{
+                      padding: "14px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Finance
+                  </th>
+                  <th
+                    style={{
+                      padding: "14px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Management
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((s) => (
-                  <tr key={s.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "12px", fontWeight: 600 }}>
-                      {s.name}
+                  <tr
+                    key={s.id}
+                    style={{ borderBottom: "1px solid #f1f5f9" }}
+                    className="table-row-hover"
+                  >
+                    <td style={{ padding: "16px 14px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: "10px",
+                            background: "#f1f5f9",
+                            display: "grid",
+                            placeItems: "center",
+                            fontWeight: "800",
+                            color: "#4F46E5",
+                          }}
+                        >
+                          {s.name.charAt(0)}
+                        </div>
+                        <div>
+                          <div
+                            style={{
+                              fontWeight: 700,
+                              color: "#1e293b",
+                              fontSize: "14px",
+                            }}
+                          >
+                            {s.name}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#94a3b8" }}>
+                            @{s.username}
+                          </div>
+                        </div>
+                      </div>
                     </td>
-                    <td style={{ padding: "12px", color: "#6b7280" }}>
-                      {s.username}
+                    <td style={{ padding: "16px 14px" }}>
+                      <span style={{ color: "#475569", fontWeight: 600 }}>
+                        Room: {s.room || "—"}
+                      </span>
                     </td>
-                    <td style={{ padding: "12px" }}>{s.room || "N/A"}</td>
-                    <td style={{ padding: "12px", fontSize: "13px" }}>
-                      {s.plan_type
-                        ? `${s.plan_type.toUpperCase()} (${s.duration})`
-                        : "No Active Plan"}
+                    <td style={{ padding: "16px 14px" }}>
+                      <span
+                        style={{
+                          background: "#EEF2FF",
+                          color: "#4F46E5",
+                          padding: "4px 8px",
+                          borderRadius: "6px",
+                          fontSize: "11px",
+                          fontWeight: "800",
+                        }}
+                      >
+                        {s.plan_type ? s.plan_type.toUpperCase() : "NO PLAN"}
+                      </span>
                     </td>
-                    <td style={{ padding: "12px" }}>
+                    <td
+                      style={{
+                        padding: "16px 14px",
+                        color: "#64748b",
+                        fontSize: "13px",
+                      }}
+                    >
                       {s.end_date
                         ? new Date(s.end_date).toLocaleDateString("en-IN")
                         : "—"}
                     </td>
-                    <td style={{ padding: "12px" }}>
+                    <td style={{ padding: "16px 14px" }}>
                       {s.payment_status ? (
                         <span
-                          className={`badge badge-${s.payment_status}`}
                           style={{
-                            padding: "4px 8px",
-                            borderRadius: "6px",
+                            padding: "5px 12px",
+                            borderRadius: "99px",
                             fontSize: "11px",
-                            fontWeight: 700,
+                            fontWeight: "800",
+                            textTransform: "uppercase",
                             backgroundColor:
                               s.payment_status === "paid"
                                 ? "#dcfce7"
                                 : s.payment_status === "partial"
-                                  ? "#fef9c3"
+                                  ? "#fef3c7"
                                   : "#fee2e2",
                             color:
                               s.payment_status === "paid"
                                 ? "#166534"
                                 : s.payment_status === "partial"
-                                  ? "#854d0e"
+                                  ? "#92400e"
                                   : "#991b1b",
                           }}
                         >
-                          {s.payment_status.toUpperCase()}
+                          {s.payment_status}
                         </span>
                       ) : (
                         "—"
                       )}
                     </td>
-                    <td style={{ padding: "12px" }}>
-                      <div style={{ display: "flex", gap: 8 }}>
+                    <td style={{ padding: "16px 14px" }}>
+                      <div style={{ display: "flex", gap: 10 }}>
                         <button
                           onClick={() => {
                             setEditing(s.id);
@@ -367,97 +576,28 @@ export default function ManageStudents() {
                             });
                           }}
                           style={{
-                            padding: "6px 10px",
-                            borderRadius: 8,
-                            border: "none",
-                            background: "#eef2ff",
-                            color: "#4F46E5",
+                            background: "#f8fafc",
+                            border: "1px solid #e2e8f0",
+                            padding: "8px",
+                            borderRadius: "8px",
                             cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                            fontWeight: 600,
-                            transition: "0.2s",
+                            color: "#64748b",
                           }}
                         >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                          >
-                            <path
-                              d="M3 17.25V21H6.75L17.81 9.94L14.06 6.19L3 17.25Z"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            />
-                            <path
-                              d="M14.06 6.19L17.81 9.94"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            />
-                          </svg>
-                          Edit
+                          ✏️
                         </button>
                         <button
                           onClick={() => handleDelete(s.id, s.name)}
                           style={{
-                            padding: "6px 10px",
-                            borderRadius: 8,
-                            border: "none",
-                            background: "#fee2e2",
-                            color: "#EF4444",
+                            background: "#fff1f2",
+                            border: "1px solid #fecdd3",
+                            padding: "8px",
+                            borderRadius: "8px",
                             cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                            fontWeight: 600,
-                            transition: "0.2s",
+                            color: "#e11d48",
                           }}
                         >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                          >
-                            <path
-                              d="M3 6H21"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            />
-                            <path
-                              d="M8 6V4H16V6"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            />
-                            <rect
-                              x="6"
-                              y="6"
-                              width="12"
-                              height="14"
-                              rx="2"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            />
-                            <line
-                              x1="10"
-                              y1="10"
-                              x2="10"
-                              y2="16"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            />
-                            <line
-                              x1="14"
-                              y1="10"
-                              x2="14"
-                              y2="16"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            />
-                          </svg>
-                          Delete
+                          🗑️
                         </button>
                       </div>
                     </td>
