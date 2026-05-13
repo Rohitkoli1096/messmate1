@@ -29,13 +29,13 @@ db.getConnection()
   });
 
 // --- 3. MIDDLEWARE ---
-app.use(cors({ 
-  origin: process.env.FRONTEND_URL || "*", 
-  credentials: true 
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "*",
+  credentials: true
 }));
 
 // Set limits to 10mb to handle base64 QR codes or high-res payment screenshots
-app.use(express.json({ limit: "10mb" })); 
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Static files serving

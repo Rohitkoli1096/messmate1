@@ -9,9 +9,7 @@ const { authMiddleware, adminOnly } = require('../middleware/auth');
 // Note: Ensure these service files exist in your project
 const { createOrder, verifyCheckoutSignature } = require("../services/payments/gatewayRazorpay");
 
-// ============================
-// ✅ ENSURE UPLOAD DIRECTORY
-// ============================
+
 const uploadDir = './uploads/';
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
